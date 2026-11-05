@@ -4,6 +4,7 @@
   const R = require("rules");
   const { Bot } = require("ai");
   const { WiezenLM } = require("wiezenlm");
+  const { Habits } = require("belief");
   const $ = (id) => document.getElementById(id);
   const NAMES = ["Jij", "Staf", "Mia", "Rik"];
   const POS = ["s", "w", "n", "e"];
@@ -11,6 +12,7 @@
   const weightsText = $("wiezenlm-weights").textContent;
   const opts = { tracking: true, shuffle: false, showAll: false };
   let game = null, worker = null, msgId = 0, busy = false, shownTrick = null, lastBotValues = null;
+  let habits = new Habits(), habitsSeen = 0; // the same learning the bots do, shown in the "Gewoontes" panel
   const cbs = {};
   const fmt = (x) => (Math.round(x * 10) / 10).toString().replace(/\.0$/, "");
   const sgn = (x) => (x > 0 ? "+" : x < 0 ? "−" : "") + fmt(Math.abs(x));
@@ -78,6 +80,7 @@
   // ------------------------------------------------------------ game flow
   function newGame() {
     game = new R.Game({ dealer: 1, alwaysShuffle: opts.shuffle });
+    habits = new Habits(); habitsSeen = 0;
     lastBotValues = null;
     prepareDeal();
   }
@@ -237,6 +240,7 @@
     renderLog();
     renderPrev();
     renderWhy();
+    renderHabits();
     // end of hand
     const sum = $("summary");
     if (over) {
@@ -336,6 +340,20 @@
     const v = lastBotValues.values.filter((x) => x.bid.type !== "pas").sort((a, b) => b.ev - a.ev).slice(0, 5);
     box.replaceChildren(...[`${NAMES[lastBotValues.seat]} rekende (verwachte punten):`, ...v.map((x) => `${R.bidLabel(x.bid)}: ${sgn(x.ev)}`), "Pas: 0"]
       .map((t, i) => { const d = document.createElement("div"); d.textContent = t; if (i === 0) d.className = "wh"; return d; }));
+  }
+
+  function renderHabits() {
+    for (; habitsSeen < game.history.length; habitsSeen++) habits.learnFrom(game.history[habitsSeen]);
+    const box = $("habits");
+    if (!habits.learned) { box.innerHTML = `<p class="note">Na elk niet-geschud spel reconstrueren de bots hoe er werd opgeraapt en gecoupeerd, en leren ze ieders gewoontes.</p>`; return; }
+    const rows = [0, 1, 2, 3].map((p) => {
+      const a = habits.cut[p]; let t = 0, m = 0;
+      for (let c = 4; c <= 48; c++) { t += a[c]; m += c * a[c]; }
+      const neat = 1 - habits.pickMix(p)[26];
+      const pick = p === 0 ? "" : ` · slagen ${neat > 0.6 ? "netjes" : neat > 0.4 ? "half netjes" : "slordig"} opgeraapt`;
+      return `<div><b>${NAMES[p]}</b> coupeert rond ${Math.round(m / t)} kaarten${pick}</div>`;
+    });
+    box.innerHTML = rows.join("") + `<p class="note">Geleerd uit ${habits.learned} spel${habits.learned === 1 ? "" : "len"}. Jouw afpakken is de gewoonte die jij zelf kiest: wie altijd ongeveer even diep coupeert, maakt het de bots makkelijker.</p>`;
   }
 
   function showDealPanel(iCut, iDeal) {

@@ -114,6 +114,7 @@ aside { display: grid; gap: 14px; min-width: 0; }
 .pile .pt { display: inline-flex; gap: 2px; background: #2d2320; border-radius: 6px; padding: 1px 5px; font-family: var(--mono); }
 .pile b { font-weight: 500; color: var(--ink); } .pile b.red { color: #f08a83; }
 .note { font-size: 13px; color: var(--mute); margin: 0; }
+.habits { font-size: 13px; display: grid; gap: 3px; } .habits b { font-weight: 500; color: var(--ochre); }
 #why { font-size: 13px; display: grid; gap: 2px; font-variant-numeric: tabular-nums; } #why .wh { color: var(--mute); }
 label.opt { display: flex; gap: 8px; align-items: center; font-size: 14px; cursor: pointer; margin: 4px 0; }
 details p, details li { font-size: 13px; color: #d6cabb; max-width: 65ch; }
@@ -175,6 +176,7 @@ summary { cursor: pointer; font-family: var(--display); font-size: 18px; }
       <div class="panel"><h2>Inschatting bot</h2><div id="why"></div></div>
       <div class="panel"><h2>Vorig spel (openbaar)</h2><div id="prev"></div>
         <p class="note">De kaarten worden niet geschud. Wie onthoudt hoe de slagen lagen, weet na het couperen en geven veel over de nieuwe handen. De bots doen dat.</p></div>
+      <div class="panel"><h2>Gewoontes aan tafel</h2><div id="habits" class="habits"></div></div>
       <div class="panel">
         <h2>Instellingen</h2>
         <label class="opt"><input type="checkbox" id="opt-track" checked> Bots volgen de kaarten</label>
@@ -186,6 +188,7 @@ summary { cursor: pointer; font-family: var(--display); font-size: 18px; }
         <details>
           <summary>Over de bots</summary>
           <p>Elke bot speelt elke kaart door honderden mogelijke verdelingen van de verborgen kaarten na te spelen. De eerste slagen worden snel gesimuleerd, de laatste zeven exact doorgerekend. De verdelingen komen uit het kaartvolgen: hoe de slagen van vorig spel lagen, waar gecoupeerd kan zijn en hoe er gegeven werd.</p>
+          <p>Na elk spel liggen alle kaarten op tafel geweest. De bots reconstrueren dan hoe het deck werd opgeraapt en gecoupeerd, en leren ieders gewoontes: hoe diep iemand coupeert, in welke volgorde de gever de stapeltjes opneemt en hoe netjes iemand zijn slagen opraapt.</p>
           <p>Bij het bieden schat het neurale netwerk WiezenLM per contract hoeveel slagen de hand waard is. Dat wordt gecombineerd met dezelfde simulaties en de IWWA-puntentabel tot verwachte punten per bod.</p>
           <ul>
             <li>Regels en punten: IWWA Specifiek Reglement Wiezen v4 en Puntentabel Wiezen.</li>

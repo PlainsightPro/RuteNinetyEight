@@ -142,5 +142,33 @@ test("tracking: after an unshuffled deal hidden cards are located far better tha
   assert.ok(mean > 0.6, "tracking too weak: " + mean);
 });
 
+test("habits: learned cut/gather/pickup habits sharpen tracking", () => {
+  const { Habits } = require("../engine/belief.js");
+  const rand = R.rngFrom(7);
+  const g = new R.Game({ rand, dealer: 0 }), H = new Habits();
+  let seen = 0, uni = 0, hab = 0, n = 0;
+  for (let h = 0; h < 24; h++) {
+    g.deal();
+    if (h >= 14 && g.handTrack.kind === "tricks") {
+      const seat = (h % 3) + 1;
+      const known = new Map(); g.dealt[seat].forEach((c) => known.set(c, seat)); known.set(g.turned, g.dealer);
+      for (const [hb, isH] of [[null, false], [H, true]]) {
+        const B = new Belief({ track: g.handTrack, seat, dealer: g.dealer, pattern: g.pattern, habits: hb });
+        B.update(known);
+        const m = B.marginals(rand, 50);
+        let a = 0, k = 0;
+        for (let p = 0; p < 4; p++) for (const c of g.dealt[p]) if (!known.has(c)) { a += m[c][p]; k++; }
+        if (isH) hab += a / k; else uni += a / k;
+      }
+      n++;
+    }
+    while (g.phase === "bid") { const lb = g.legalBids(g.turn); g.bid(g.turn, lb.find((b) => ["vraag", "mee", "alleen"].includes(b.type)) || lb[0]); }
+    while (g.phase === "play") { const lc = g.legalCards(g.turn); g.play(g.turn, lc[Math.floor(rand() * lc.length)]); }
+    for (; seen < g.history.length; seen++) H.learnFrom(g.history[seen]);
+  }
+  console.log(`      P(true owner): uniform ${(uni / n).toFixed(3)}, learned habits ${(hab / n).toFixed(3)}`);
+  assert.ok(hab / n > uni / n + 0.02, "habits did not help");
+});
+
 console.log(failures ? `\n${failures} test(s) failed` : "\nall tests passed");
 process.exit(failures ? 1 : 0);

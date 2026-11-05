@@ -9,7 +9,7 @@
 const _req = typeof require !== "undefined";
 const R = _req ? require("./rules.js") : globalThis;
 const { DDS } = _req ? require("./dds.js") : globalThis;
-const { Belief } = _req ? require("./belief.js") : globalThis;
+const { Belief, Habits } = _req ? require("./belief.js") : globalThis;
 const { suitOf, rankOf, NT, scoreHand, vraagPts, alleenPts, ABON_PTS, trickWinner } = R;
 
 const K_DD = 7; // exact double-dummy once every hand holds <= K_DD cards
@@ -171,10 +171,10 @@ function voidsOf(game) {
   }
   return v;
 }
-function makeBelief(game, seat, useTracking) {
+function makeBelief(game, seat, useTracking, habits = null) {
   const tr = game.handTrack;
   return new Belief({
-    track: tr, seat, dealer: game.dealer, pattern: game.pattern, useTracking,
+    track: tr, seat, dealer: game.dealer, pattern: game.pattern, useTracking, habits: useTracking ? habits : null,
     prevOwnHand: tr.kind === "hands" && tr.prevHands ? tr.prevHands[seat] : null,
   });
 }
@@ -197,13 +197,22 @@ class Bot {
     this.bidWorlds = opts.bidWorlds || 12;
     this.timeMs = opts.timeMs ?? 1500;     // time budget per decision (ms); at least 6 worlds are always used
     this.useTracking = opts.useTracking !== false;
+    this.learnHabits = opts.learnHabits !== false; // learn cut/gather habits from finished hands
     this.prior = opts.prior || null;       // WiezenLM: (hand, turned, relSeat) -> trick distributions
     this.priorWeight = opts.priorWeight ?? 8;
   }
 
+  // learn the players' cutting / gathering habits from all finished hands of this game
+  syncHabits(game) {
+    if (!this.learnHabits || !this.useTracking) return;
+    if (this._gid !== game.gameId) { this.habits = new Habits(); this._gid = game.gameId; this._seen = 0; }
+    for (; this._seen < game.history.length; this._seen++) this.habits.learnFrom(game.history[this._seen]);
+  }
+
   belief(game, seat) {
-    const key = game.handNo + ":" + seat;
-    if (!this._b || this._bk !== key) { this._b = makeBelief(game, seat, this.useTracking); this._bk = key; }
+    this.syncHabits(game);
+    const key = game.gameId + ":" + game.handNo + ":" + seat;
+    if (!this._b || this._bk !== key) { this._b = makeBelief(game, seat, this.useTracking, this.learnHabits ? this.habits : null); this._bk = key; }
     this._b.update(knownMap(game, seat));
     return this._b;
   }

@@ -42,10 +42,37 @@ the four trick piles could have been gathered (24) and every cut position (45). 
 likelihood of its own hand, the turned card and every card played so far, and samples deals from
 that posterior.
 
-Right after the deal, knowing only its own 13 cards and the turned card, a bot gives the **true owner
-of each hidden card about 78–80% probability**. Without tracking that would be 33%. You see the same
-information in the "Vorig spel" panel. After an all-pass hand each player only knows his own previous
-hand, and the bots model that case too.
+**Learned habits.** People are not random when they gather and cut. After every hand all 52 cards
+have been played, so the bots reconstruct how that hand's deck was gathered and cut, and learn per player:
+- how deep they usually cut
+- in which order the dealer picks up the piles (starting seat, clockwise or not)
+- how they stack a trick they win: in play order, reversed, by seat (for example own card first, then
+  clockwise; 24 possibilities), or sloppily
+
+These become priors for the next deals. Each trick block is then a mixture of the tidy orders and the sloppy one.
+
+One subtlety: starting the gathering one pile later and cutting that pile's size less gives exactly
+the same deck. A finished hand therefore has several equally good explanations. The habits are fitted
+jointly with EM over all finished hands, with random restarts. Consistent habits break the tie because
+pile sizes differ from hand to hand.
+
+Accuracy right after the deal, when the bot knows only its own 13 cards and the turned card
+(simulated tables, 150 deals, `train/test_engine.js` reproduces a smaller version):
+
+| | uniform prior | learned habits (after 12+ hands) |
+|---|---|---|
+| probability on the true owner of each hidden card | 0.80 | **0.89** |
+| hidden cards located with >95% certainty | 53% | **65%** |
+| plausible deck orders (effective number) | 5.4 | **2.0** |
+
+Without tracking the probability on the true owner would be 0.33. The simulated players get random personal habits:
+- cut depth: mean 14–38 cards, spread 2–6
+- gathering: a fixed starting seat 85% of the time
+- trick pickup: play order, a seat order or sloppy, with 60–95% consistency
+
+These are assumptions about human behaviour, not measurements. The "Gewoontes aan tafel" panel shows
+what the bots have learned, including your own cut depth. After an all-pass hand each player only knows
+his own previous hand, and the bots model that case too.
 
 ### WiezenLM (`model/`)
 
@@ -169,5 +196,6 @@ node train/match.js 400 1 bot-vs-rules model/wiezenlm.web.json
   solves only the last seven tricks exactly, so long-range planning in the opening is approximate.
 - **Bidding inferences are limited.** Other players' bids are used only through the contract
   (who asked or joined), not as soft evidence about their hands.
-- **Real tables are sloppier than the model.** The tracking model is exact for the gathering procedure
-  above. At a real table, piles may be gathered differently, so real-world tracking would be less certain.
+- **Real tables may differ from the habit model.** The tracking adapts to habits of the kinds above
+  (cut depth, gathering order, trick pickup). Other habits, such as squaring piles or partial riffles,
+  are not modelled, so they would show up as "sloppy" and make tracking less certain.

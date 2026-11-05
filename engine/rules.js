@@ -122,7 +122,33 @@ class Game {
     this.deck = null;      // physical order (top first) for the next deal
     this.track = { kind: "shuffled" }; // public description of how `deck` was formed
     this.handNo = 0;
+    this.gameId = Math.floor(this.rand() * 1e9);
     this.history = [];     // finished hands
+    // Personal habits of the (simulated) players: everyone cuts around their own favourite depth and
+    // usually gathers the trick piles in the same order. Real players behave like this; the bots
+    // do not know these values, they learn them from finished hands (see Habits in belief.js).
+    this.habits = opts.habits === false ? null : [0, 1, 2, 3].map(() => ({
+      cutMean: 14 + this.rand() * 24, cutSd: 2 + this.rand() * 4,
+      gatherStart: Math.floor(this.rand() * 4), gatherHabit: 0.85,
+      // how this player sweeps up a trick he wins: in play order, by seat (e.g. own card first, then
+      // clockwise), or sloppy; "neat" = how often he sticks to it
+      pickup: ["play", "seat", "sloppy"][Math.floor(this.rand() * 3)],
+      seatPerm: shuffleInPlace([0, 1, 2, 3], this.rand), neat: 0.6 + this.rand() * 0.35,
+    }));
+  }
+
+  // the order in which the winner stacks the 4 cards of a trick
+  pickUp(t) {
+    const h = this.habits && this.habits[t.winner];
+    if (!h || h.pickup === "sloppy" || this.rand() > h.neat) return shuffleInPlace(t.cards.slice(), this.rand);
+    if (h.pickup === "play") return t.cards.slice();
+    return h.seatPerm.map((off) => t.cards[t.seats.indexOf((t.winner + off) % 4)]);
+  }
+
+  habitCut(cutter) {
+    const h = this.habits[cutter];
+    const g = Math.sqrt(-2 * Math.log(this.rand() || 1e-9)) * Math.cos(2 * Math.PI * this.rand());
+    return Math.max(4, Math.min(48, Math.round(h.cutMean + h.cutSd * g)));
   }
 
   // --- start a new hand. cut in [4,48] (cards lifted off by the previous dealer), pattern "445"/"454"
@@ -131,7 +157,7 @@ class Game {
       this.deck = shuffleInPlace([...Array(52).keys()], this.rand);
       this.track = { kind: "shuffled" };
     }
-    if (cut == null) cut = 4 + Math.floor(this.rand() * 45);
+    if (cut == null) cut = this.habits ? this.habitCut((this.dealer + 3) % 4) : 4 + Math.floor(this.rand() * 45);
     if (!pattern) pattern = this.rand() < 0.5 ? "445" : "454";
     const d = this.deck.slice(cut).concat(this.deck.slice(0, cut));
     const map = dealMap(this.dealer, pattern);
@@ -295,15 +321,21 @@ class Game {
     if (this.contract) pts = scoreHand(this.contract, this.won);
     for (let p = 0; p < 4; p++) this.scores[p] += pts[p];
     this.lastPts = pts;
-    this.history.push({ dealer: this.dealer, contract: this.contract, won: this.won.slice(), pts, bids: this.bids.slice(), dealt: this.dealt });
+    this.history.push({ dealer: this.dealer, contract: this.contract, won: this.won.slice(), pts, bids: this.bids.slice(),
+      dealt: this.dealt, track: this.handTrack, pattern: this.pattern });
     // --- collect the cards for the next deal (no shuffling after the first game, §1)
-    const order = shuffleInPlace([0, 1, 2, 3], this.rand); // the new dealer gathers the piles in some order
+    const gatherer = (this.dealer + 1) % 4;  // the new dealer gathers the piles
+    let order = shuffleInPlace([0, 1, 2, 3], this.rand);
+    if (this.habits && this.rand() < this.habits[gatherer].gatherHabit) {
+      const k = this.habits[gatherer].gatherStart;
+      order = [0, 1, 2, 3].map((i) => (gatherer + k + i) % 4); // habitual: start at a fixed seat, go clockwise
+    }
     const deck = [];
     if (this.contract) {
       const piles = [[], [], [], []];
-      for (const t of this.tricks) piles[t.winner].push(shuffleInPlace(t.cards.slice(), this.rand)); // order inside a trick is sloppy
+      for (const t of this.tricks) piles[t.winner].push(this.pickUp(t));
       for (const p of order) for (const t of piles[p]) deck.push(...t);
-      this.track = { kind: "tricks", tricks: this.tricks.map((t) => ({ cards: t.cards.slice(), winner: t.winner })) };
+      this.track = { kind: "tricks", tricks: this.tricks.map((t) => ({ cards: t.cards.slice(), seats: t.seats.slice(), winner: t.winner })) };
     } else {
       for (const p of order) deck.push(...shuffleInPlace(this.hands[p].slice(), this.rand));
       this.track = { kind: "hands" }; // each player only knows his own previous hand
