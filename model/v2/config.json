@@ -1,0 +1,30 @@
+{
+ "d": 64,
+ "layers": 3,
+ "heads": 4,
+ "version": 2,
+ "params": 163647,
+ "heads_order": [
+  "alone_c",
+  "alone_d",
+  "alone_h",
+  "alone_s",
+  "nt",
+  "alleen",
+  "pair1",
+  "pair2",
+  "pair3",
+  "misery_clean"
+ ],
+ "samples": 257848,
+ "metrics": {
+  "test_rollout_ce": 1.4254,
+  "test_misery_bce": 0.0845,
+  "test_real_nll": 1.9466,
+  "test_real_n": 241,
+  "v1_test_rollout_ce": 1.4252,
+  "v1_test_misery_bce": 0.0819,
+  "v1_test_real_nll": 2.1608
+ },
+ "inputs": "[CLS] + 13 own cards + turned card + seat + 39 other cards with belief (P left/across/right)"
+}

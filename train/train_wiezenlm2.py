@@ -148,6 +148,7 @@ def main():
     ap.add_argument("--v1", nargs="*", default=[])
     ap.add_argument("--sp", nargs="+", required=True)
     ap.add_argument("--old", default=None, help="v1 model dir, for comparison")
+    ap.add_argument("--prev", default=None, help="previous v2-architecture model dir (e.g. the last self-play round), for a paired comparison")
     ap.add_argument("--epochs", type=int, default=6)
     ap.add_argument("--bs", type=int, default=512)
     ap.add_argument("--real-weight", type=float, default=3.0)
@@ -244,6 +245,23 @@ def main():
         oce, obce, orn, _ = evaluate(old, v2=False)
         metrics.update(v1_test_rollout_ce=round(oce, 4), v1_test_misery_bce=round(obce, 4), v1_test_real_nll=round(orn, 4))
         print(f"v1 on the same test set: rollout CE {oce:.3f}  misery BCE {obce:.3f}  real-outcome NLL {orn:.3f}")
+    if a.prev:
+        from safetensors.torch import load_file
+        pc = json.load(open(os.path.join(a.prev, "config.json")))
+        prev = WiezenLM2(d=pc["d"], layers=pc["layers"], heads=pc["heads"])
+        prev.load_state_dict(load_file(os.path.join(a.prev, "wiezenlm.safetensors")))
+        pce, pbce, prn, _ = evaluate(prev)
+        pce2, _, _, _ = evaluate(prev, T=test2)
+        # paired comparison on the real outcomes
+        model.eval(); prev.eval()
+        with torch.no_grad():
+            c, t, s_, o, ol, lab, rh, rv = batch(test, np.arange(len(test["cards"])), False)
+            dn = (real_nll(prev(c, t, s_, o, ol), rh, rv) - real_nll(model(c, t, s_, o, ol), rh, rv)).numpy()
+        ci = 1.96 * dn.std() / np.sqrt(len(dn))
+        metrics.update(prev_test_rollout_ce=round(pce, 4), prev_test_real_nll=round(prn, 4), prev_heldout10k_rollout_ce=round(pce2, 4),
+                       real_nll_gain_vs_prev=round(float(dn.mean()), 4), real_nll_gain_vs_prev_ci95=round(float(ci), 4))
+        print(f"previous model on the same test set: rollout CE {pce:.3f}  real-outcome NLL {prn:.3f}  "
+              f"-> gain {dn.mean():.3f} +- {ci:.3f} (95%, paired)")
     print(json.dumps(metrics))
 
     os.makedirs(a.out, exist_ok=True)

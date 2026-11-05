@@ -74,7 +74,7 @@ These are assumptions about human behaviour, not measurements. The "Gewoontes aa
 what the bots have learned, including your own cut depth. After an all-pass hand each player only knows
 his own previous hand, and the bots model that case too.
 
-### WiezenLM (`model/`, v2, trained on bot-vs-bot self-play)
+### WiezenLM (`model/`, v3, two rounds of bot-vs-bot self-play)
 
 A small transformer encoder (164k parameters) that evaluates a hand for bidding.
 
@@ -103,7 +103,32 @@ A small transformer encoder (164k parameters) that evaluates a hand for bidding.
    - Augmentation: suit permutation.
    - 6 epochs, about 18 minutes on a CPU.
 
-**Result on held-out bot-vs-bot hands** (the last 15% of self-play, 241 real contract outcomes):
+4. **Round 2 → v3:** the bots, now using v2, played 4,500 more hands (2,500 real outcomes). v3 was
+   trained on everything: 264k samples, including 3,460 real outcomes (the rest is held out).
+   v1 and v2 stay in `model/v1/` and `model/v2/`.
+
+**Result on held-out round-2 hands** (555 real contract outcomes, never seen by v2 or v3; NLL, lower is better):
+
+| contract | n | v1 | v2 | v3 |
+|---|---|---|---|---|
+| all | 555 | 2.024 | 1.860 | **1.687** |
+| vraag / meegaan | 324 | 2.522 | 2.271 | **2.007** |
+| miserie | 70 | 0.635 | 0.567 | **0.555** |
+| alleen / abondance / solo | 161 | 1.626 | 1.595 | **1.536** |
+
+v3 vs v2: 0.17 ± 0.03 better (95%, paired). v3 vs v1: 0.34 ± 0.05.
+
+Two caveats:
+- **Part of the gain is distribution.** v3 has seen games of v2-bots, the same kind of games as the
+  test set, and v2 had not. That is the point of iterating, but it means the round-over-round gain is partly that.
+- **Counterfactual labels get slightly worse.** On the "all cards visible" labels v3 scores 1.408 against
+  1.392 for v2, because training puts more weight on real results.
+
+The bots became more cautious along the way: real outcomes per hand dropped from 0.85 (round 1) to 0.57
+(round 2), because v2 expects lower real results than the perfect-information labels suggest.
+Whether more caution also wins more points needs a head-to-head match.
+
+**Round 1 result** (v1 vs v2, 241 real outcomes from round 1):
 
 | | v1 | v2 |
 |---|---|---|
@@ -238,7 +263,10 @@ for i in 1 2 3 4; do node train/gen_bidding.js 12000 $((100+i)) build/bid_$i.bin
 python3 train/train_wiezenlm.py model/v1 build/bid_*.bin                                      # v1, ~8 min, needs torch + safetensors
 for i in 1 2 3; do node train/selfplay.js bots 900 $((200+i)) build/sp_bots_$i.bin model/v1/wiezenlm.web.json & done
 node train/selfplay.js fast 15000 299 build/sp_fast.bin; wait                                  # bot-vs-bot self-play, ~1 h
-python3 train/train_wiezenlm2.py model --v1 build/bid_*.bin --sp build/sp_*.bin --old model/v1   # v2, ~18 min
+python3 train/train_wiezenlm2.py model/v2 --v1 build/bid_*.bin --sp build/sp_*.bin --old model/v1   # v2, ~18 min
+for i in 1 2 3 4; do node train/selfplay.js bots 1500 $((300+i)) build/sp2_bots_$i.bin model/v2/wiezenlm.web.json & done; wait
+python3 train/train_wiezenlm2.py model --v1 build/bid_*.bin --sp build/sp_fast.bin build/sp_bots_*.bin build/sp2_bots_*.bin \
+  --old model/v1 --prev model/v2                                                              # v3 (round 2), ~17 min
 python3 web/build.py model/wiezenlm.web.json web/index.html
 node train/match.js 400 1 bot-vs-rules model/wiezenlm.web.json
 ```
