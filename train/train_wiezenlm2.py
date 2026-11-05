@@ -151,9 +151,17 @@ def main():
     ap.add_argument("--epochs", type=int, default=6)
     ap.add_argument("--bs", type=int, default=512)
     ap.add_argument("--real-weight", type=float, default=3.0)
+    ap.add_argument("--d", type=int, default=64)
+    ap.add_argument("--layers", type=int, default=3)
+    ap.add_argument("--heads", type=int, default=4)
+    ap.add_argument("--frac", type=float, default=1.0, help="fraction of the training data to use (scaling runs)")
+    ap.add_argument("--threads", type=int, default=0)
+    ap.add_argument("--no-save", action="store_true")
+    ap.add_argument("--tag", default="")
+    ap.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
-    torch.manual_seed(0); np.random.seed(0)
-    torch.set_num_threads(os.cpu_count())
+    torch.manual_seed(a.seed); np.random.seed(a.seed)
+    torch.set_num_threads(a.threads or os.cpu_count())
 
     sp = load_sp(a.sp)
     # hold out the last 15% of the bot-vs-bot samples (contiguous = whole hands/sessions)
@@ -165,14 +173,24 @@ def main():
     if a.v1:
         parts.append(load_v1(a.v1))
     D = cat(parts)
+    # extra held-out set (10k positions from the v1 / fast self-play data) for precise rollout-label metrics
+    rng = np.random.RandomState(123)
+    ho = rng.choice(len(D["cards"]), 10000, replace=False)
+    ho = ho[D["src"][ho] != 2]
+    test2 = {k: v[ho] for k, v in D.items()}
+    rest = np.setdiff1d(np.arange(len(D["cards"])), ho)
+    if a.frac < 1.0:
+        rest = rng.choice(rest, int(len(rest) * a.frac), replace=False)
+    D = {k: v[rest] for k, v in D.items()}
     D["oth"] = others_of(D["cards"])
     test["oth"] = others_of(test["cards"])
+    test2["oth"] = others_of(test2["cards"])
     n = len(D["cards"])
     print(f"train: {n:,} samples ({(D['src'] == 0).sum():,} shuffled-deal v1, {(D['src'] == 1).sum():,} fast self-play, "
           f"{(D['src'] == 2).sum():,} bot-vs-bot, {(D['rh'] != 255).sum():,} real outcomes); "
           f"test: {len(test['cards']):,} bot-vs-bot samples, {(test['rh'] != 255).sum():,} real outcomes")
 
-    model = WiezenLM2()
+    model = WiezenLM2(d=a.d, layers=a.layers, heads=a.heads)
     nparam = sum(p.numel() for p in model.parameters())
     print(f"WiezenLM v2: {nparam:,} parameters")
     opt = torch.optim.AdamW(model.parameters(), lr=2e-3, weight_decay=0.01)
@@ -183,15 +201,19 @@ def main():
     w[D["rh"] != 255] = 4.0
     w /= w.sum()
 
-    def evaluate(m, v2=True):
+    def evaluate(m, v2=True, T=None):
+        T = test if T is None else T
         m.eval()
+        ces, bces, rns = [], [], []
         with torch.no_grad():
-            c, t, s, o, ol, lab, rh, rv = batch(test, np.arange(len(test["cards"])), False)
-            out = m(c, t, s, o, ol) if v2 else m(c, t, s)
-            ce, bce, _, _ = losses(out, lab, rh, rv)
-            rn = real_nll(out, rh, rv)
+            for i in range(0, len(T["cards"]), 2048):
+                c, t, s, o, ol, lab, rh, rv = batch(T, np.arange(i, min(i + 2048, len(T["cards"]))), False)
+                out = m(c, t, s, o, ol) if v2 else m(c, t, s)
+                ce, bce, _, _ = losses(out, lab, rh, rv)
+                ces.append(ce); bces.append(bce); rns.append(real_nll(out, rh, rv))
         m.train()
-        return ce.mean().item(), bce.mean().item(), rn.mean().item(), len(rn)
+        ce, bce, rn = torch.cat(ces), torch.cat(bces), torch.cat(rns)
+        return ce.mean().item(), bce.mean().item(), (rn.mean().item() if len(rn) else float("nan")), len(rn)
 
     t0 = time.time()
     for ep in range(a.epochs):
@@ -205,6 +227,16 @@ def main():
         print(f"epoch {ep}: test rollout CE {ce:.3f}  misery BCE {bce:.3f}  real-outcome NLL {rn:.3f} (n={k})  {time.time() - t0:.0f}s", flush=True)
 
     metrics = dict(test_rollout_ce=round(ce, 4), test_misery_bce=round(bce, 4), test_real_nll=round(rn, 4), test_real_n=k)
+    ce2, bce2, _, _ = evaluate(model, T=test2)
+    trs = {kk: v[:10000] for kk, v in D.items()}
+    ce3, bce3, _, _ = evaluate(model, T=trs)
+    metrics.update(heldout10k_rollout_ce=round(ce2, 4), heldout10k_misery_bce=round(bce2, 4),
+                   train10k_rollout_ce=round(ce3, 4), train10k_misery_bce=round(bce3, 4),
+                   params=nparam, train_samples=int(n), d=a.d, layers=a.layers, frac=a.frac, tag=a.tag, seed=a.seed,
+                   minutes=round((time.time() - t0) / 60, 1))
+    print("SCALING " + json.dumps(metrics), flush=True)
+    if a.no_save:
+        return
     if a.old:
         from safetensors.torch import load_file
         old = WiezenLMv1()

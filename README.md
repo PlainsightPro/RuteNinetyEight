@@ -133,6 +133,29 @@ Files:
 
 `engine/wiezenlm.js` runs v1 and v2 without dependencies and matches PyTorch to within 0.005 logits.
 
+### Scaling experiment (`model/scaling.jsonl`)
+
+Same v2 architecture and training recipe, on the same 248k training samples with an equal number of
+training steps. Lower is better.
+
+| model | parameters | data | held-out CE (10k) | bot-vs-bot CE (1,032) | real-outcome NLL (241) |
+|---|---|---|---|---|---|
+| S (d=32, 2 layers) | 32k | 100% | 1.501 | 1.587 | 2.143 |
+| M (d=64, 3 layers), 2 seeds | 164k | 100% | 1.394 / 1.445 | 1.470 / 1.548 | 1.969 / 1.926 |
+| M, 2 seeds | 164k | 50% | 1.447 / 1.390 | 1.531 / 1.482 | 2.063 / 1.841 |
+| M | 164k | 25% | 1.447 | 1.532 | 2.091 |
+| L (d=128, 4 layers) | 820k | 100% | **1.358** | **1.442** | **1.915** |
+
+What this shows:
+- **Run-to-run noise is about ±0.05.** The same M model on the same data differs by 0.05 between two seeds.
+- **32k → 164k parameters clearly helps,** by about 0.08, beyond the noise.
+- **164k → 820k gives perhaps a small gain** (about 0.06 on the held-out set, from one seed). That is barely above the noise,
+  for 2.7× the training time.
+- **More of the same data does not help measurably.** 50% and 100% of the data give the same result (averages 1.42 and 1.42).
+  The counterfactual labels are saturated at this size.
+- **Conclusion:** returns flatten well before a million parameters, so a 3B model would not help.
+  New kinds of signal, such as more real bot-vs-bot outcomes or more iterations of self-play, are the way forward.
+
 ## Results
 
 Two player types share each table: seats 0 and 2 are one type, seats 1 and 3 the other, swapped every hand.
