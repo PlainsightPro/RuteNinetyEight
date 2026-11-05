@@ -26,7 +26,7 @@
     const d = e.data;
     if (d.init) {
       const lm = new WiezenLM(JSON.parse(d.weights));
-      const prior = (h, t, s) => lm.predict(h, t, s);
+      const prior = (h, t, s, loc) => lm.predict(h, t, s, loc); prior.usesLoc = lm.usesLoc;
       bots.on = new Bot({ prior, worlds: 32, bidWorlds: 14, timeMs: 1100 });
       bots.off = new Bot({ prior, worlds: 32, bidWorlds: 14, timeMs: 1100, useTracking: false });
       return;
@@ -55,7 +55,7 @@
   function inlineBots() {
     if (!inline) {
       const lm = new WiezenLM(JSON.parse(weightsText));
-      const prior = (h, t, s) => lm.predict(h, t, s);
+      const prior = (h, t, s, loc) => lm.predict(h, t, s, loc); prior.usesLoc = lm.usesLoc;
       inline = { on: new Bot({ prior, worlds: 20, bidWorlds: 10, timeMs: 700 }), off: new Bot({ prior, worlds: 20, bidWorlds: 10, timeMs: 700, useTracking: false }) };
     }
     return opts.tracking ? inline.on : inline.off;

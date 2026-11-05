@@ -188,6 +188,30 @@ function sampleHands(game, seat, belief, rand, voids) {
   return hands;
 }
 
+// What `seat` believes about who holds every other card, at the start of the hand:
+// loc[c*3 + k-1] = P(card c is held by seat+k), k = 1..3 (own cards: all zero).
+function locFeatures(game, seat, belief, rand, n = 64) {
+  const loc = new Float32Array(52 * 3);
+  const mine = new Set(game.dealt[seat]);
+  if (!belief || belief.kind === "shuffled") {
+    const slots = [13, 13, 13, 13];
+    slots[seat] = 0;
+    if (!mine.has(game.turned)) { slots[game.dealer]--; loc[game.turned * 3 + ((game.dealer - seat + 4) % 4) - 1] = 1; }
+    const tot = slots[0] + slots[1] + slots[2] + slots[3];
+    for (let c = 0; c < 52; c++) {
+      if (mine.has(c) || c === game.turned) continue;
+      for (let k = 1; k <= 3; k++) loc[c * 3 + k - 1] = slots[(seat + k) % 4] / tot;
+    }
+    return loc;
+  }
+  const m = belief.marginals(rand, n);
+  for (let c = 0; c < 52; c++) {
+    if (mine.has(c)) continue;
+    for (let k = 1; k <= 3; k++) loc[c * 3 + k - 1] = m[c][(seat + k) % 4];
+  }
+  return loc;
+}
+
 // ------------------------------------------------------------------ the bot
 class Bot {
   constructor(opts = {}) {
@@ -305,9 +329,12 @@ class Bot {
     others.forEach((j) => (out.pair[j] = D(S.pair[j])));
     if (this.prior) {
       const rel = (seat - game.dealer + 4) % 4;
-      const P = this.prior(game.dealt[seat], game.turned, rel);
+      // a tracking-aware network (v2) also gets the card-location belief, so it keeps its full weight
+      const usesLoc = !!this.prior.usesLoc;
+      const loc = usesLoc ? locFeatures(game, seat, belief, this.rand) : null;
+      const P = this.prior(game.dealt[seat], game.turned, rel, loc);
       const eff = belief.kind === "shuffled" ? 999 : belief.effective();
-      const wp = belief.kind === "shuffled" ? this.priorWeight : Math.min(this.priorWeight, eff / 4);
+      const wp = usesLoc || belief.kind === "shuffled" ? this.priorWeight : Math.min(this.priorWeight, eff / 4);
       const mix = (a, b) => a.map((x, i) => (S.n * x + wp * b[i]) / (S.n + wp));
       for (let t = 0; t < 4; t++) out.alone[t] = mix(out.alone[t], P.alone[t]);
       out.nt = mix(out.nt, P.nt);
@@ -355,4 +382,4 @@ class Bot {
 
 function expect(d) { return d.reduce((a, p, k) => a + p * k, 0); }
 
-if (typeof module !== "undefined") module.exports = { Bot, heurCard, rollout, ddSetup, utility, knownMap, voidsOf, makeBelief, sampleHands, K_DD, legalOf };
+if (typeof module !== "undefined") module.exports = { Bot, locFeatures, heurCard, rollout, ddSetup, utility, knownMap, voidsOf, makeBelief, sampleHands, K_DD, legalOf };

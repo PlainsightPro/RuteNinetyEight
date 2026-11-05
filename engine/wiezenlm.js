@@ -25,6 +25,7 @@ class WiezenLM {
       this.W[k] = a;
     }
     this.tests = bundle.tests;
+    this.usesLoc = this.cfg.version === 2; // v2 also reads the card-tracking belief
   }
   static ln(x, T, d, w, b) {
     const y = new Float32Array(T * d);
@@ -48,8 +49,12 @@ class WiezenLM {
       }
     return y;
   }
-  raw(cards, turned, seat) {
-    const { d, heads, layers } = this.cfg, W = this.W, T = 16, dh = d / heads;
+  // loc (v2 only): Float32Array(52*3), P(card held by the player at +1/+2/+3 seats)
+  raw(cards, turned, seat, loc) {
+    const { d, heads, layers } = this.cfg, W = this.W, dh = d / heads, v2 = this.usesLoc;
+    const mine = new Set(cards);
+    const others = v2 ? [...Array(52).keys()].filter((c) => !mine.has(c)) : [];
+    const T = 16 + others.length;
     const x = new Float32Array(T * d);
     const kind = W["kind.weight"];
     const emb = (c, row) => { for (let i = 0; i < d; i++) x[row * d + i] = W["card.weight"][c * d + i] + W["suit.weight"][((c / 13) | 0) * d + i] + W["rank.weight"][(c % 13) * d + i]; };
@@ -57,6 +62,13 @@ class WiezenLM {
     cards.forEach((c, j) => { emb(c, 1 + j); for (let i = 0; i < d; i++) x[(1 + j) * d + i] += kind[d + i]; });
     emb(turned, 14); for (let i = 0; i < d; i++) x[14 * d + i] += kind[2 * d + i];
     for (let i = 0; i < d; i++) x[15 * d + i] = W["seat.weight"][seat * d + i] + kind[3 * d + i];
+    others.forEach((c, j) => {
+      const row = 16 + j;
+      emb(c, row);
+      const l0 = loc ? loc[c * 3] : 0, l1 = loc ? loc[c * 3 + 1] : 0, l2 = loc ? loc[c * 3 + 2] : 0;
+      for (let i = 0; i < d; i++)
+        x[row * d + i] += kind[4 * d + i] + W["loc.bias"][i] + W["loc.weight"][i * 3] * l0 + W["loc.weight"][i * 3 + 1] * l1 + W["loc.weight"][i * 3 + 2] * l2;
+    });
     let h = x;
     for (let l = 0; l < layers; l++) {
       const P = `blocks.${l}.`;
@@ -87,8 +99,8 @@ class WiezenLM {
     return WiezenLM.lin(cls, 1, d, 127, W["head.weight"], W["head.bias"]);
   }
   // distributions in the format Bot.estimate() expects
-  predict(cards, turned, seat) {
-    const o = this.raw(cards, turned, seat);
+  predict(cards, turned, seat, loc) {
+    const o = this.raw(cards, turned, seat, loc);
     const dist = (k) => {
       let mx = -Infinity; for (let i = 0; i < 14; i++) mx = Math.max(mx, o[k * 14 + i]);
       const e = []; let z = 0; for (let i = 0; i < 14; i++) { e.push(Math.exp(o[k * 14 + i] - mx)); z += e[i]; }
@@ -102,7 +114,7 @@ class WiezenLM {
   selfTest() {
     let worst = 0;
     for (const t of this.tests) {
-      const o = this.raw(t.cards, t.turned, t.seat);
+      const o = this.raw(t.cards, t.turned, t.seat, t.loc ? Float32Array.from(t.loc) : null);
       for (let i = 0; i < 127; i++) worst = Math.max(worst, Math.abs(o[i] - t.out[i]));
     }
     return worst;

@@ -74,37 +74,64 @@ These are assumptions about human behaviour, not measurements. The "Gewoontes aa
 what the bots have learned, including your own cut depth. After an all-pass hand each player only knows
 his own previous hand, and the bots model that case too.
 
-### WiezenLM (`model/`)
+### WiezenLM (`model/`, v2, trained on bot-vs-bot self-play)
 
-A small transformer encoder (100k parameters) that evaluates a hand for bidding.
+A small transformer encoder (164k parameters) that evaluates a hand for bidding.
 
-- **Input tokens:** `[CLS]`, your 13 cards, the turned card, and your seat relative to the dealer.
+- **Input tokens:** `[CLS]`, your 13 cards, the turned card, your seat relative to the dealer, and one
+  token for each of the 39 cards you don't hold. Each of those carries the card-tracking belief about
+  who holds it (left, across, right).
 - **Outputs:** a probability distribution over 0–13 tricks for each of these contracts:
   - playing alone with trump ♣, ♦, ♥ or ♠
   - solo without trump
   - "alleen" with the turned trump
   - a partnership with each of the other three seats
   - plus the probability that a misery stays clean
-- **Training data:** 192,000 hands (48,000 random deals × 4 seats), labelled with the bots' own rollouts on the true deal.
-- **Accuracy on 10,000 held-out hands:**
 
-| head | mean abs. error, expected tricks | baseline (ignore the hand) |
+**How it was trained**
+
+1. **v1 (`model/v1/`):** 192,000 hands from random shuffled deals. Each is labelled with what every contract would
+   make when played out on the true deal: heuristic early tricks, then the last 7 tricks solved exactly.
+2. **Self-play (`train/selfplay.js`):** the full bots played 1,720 hands against each other in sessions
+   without shuffling, with card tracking, learned habits, real bidding and real play. For every seat and
+   deal it records the hand, the tracking belief at the start, the counterfactual labels, and the
+   **actual result of the contract the bots really played**: 1,460 real outcomes. Another 15,000
+   hands with quick rule-based players add more tracking situations, with counterfactual labels only.
+3. **v2 (`train/train_wiezenlm2.py`):** trained on all of it (258,000 samples).
+   - Loss: cross-entropy on the counterfactual labels, plus the real bot-vs-bot outcomes with weight 3,
+     oversampled ×4.
+   - Augmentation: suit permutation.
+   - 6 epochs, about 18 minutes on a CPU.
+
+**Result on held-out bot-vs-bot hands** (the last 15% of self-play, 241 real contract outcomes):
+
+| | v1 | v2 |
 |---|---|---|
-| alone in a suit (avg of 4) | 0.49 | 1.27 |
-| solo without trump | 0.54 | 1.22 |
-| alleen (turned trump) | 0.58 | 1.35 |
-| partnership (avg of 3) | 1.70 | 2.06 |
+| NLL of the actual outcome (lower is better) | 2.161 | **1.947** |
+| vraag / meegaan (188) | 2.464 | 2.233 |
+| miserie (33) | 0.542 | 0.476 |
+| alleen / abondance / solo (20) | 1.977 | 1.686 |
 
-The partnership heads are weaker by nature, because the partner's hand is unknown. During bidding the
-network is blended with simulations on sampled deals. When tracking pins the deal down, the bot
-trusts the simulations more.
+The paired difference is 0.21 ± 0.06 nats per outcome (95%), so v2 puts about 24% more probability on
+what really happened.
+
+The gain comes from **learning from real games**. Perfect-information labels are systematically off from what bots
+achieve with hidden cards, and v2 corrects for that. The tracking-belief input helps only a
+little so far: blanking it costs 0.015 ± 0.005 nats. On counterfactual labels v1 and v2 are equal (1.425).
+v1 MAE figures on shuffled deals, for reference:
+- alone in a suit: 0.49 tricks (baseline 1.27)
+- solo without trump: 0.54 (1.22)
+- alleen: 0.58 (1.35)
+- partnership: 1.70 (2.06)
+
+During bidding the network is blended with simulations on sampled deals.
 
 Files:
 - `wiezenlm.safetensors`: weights
 - `config.json`: architecture and metrics
 - `wiezenlm.web.json`: float16 browser bundle
 
-`engine/wiezenlm.js` is a dependency-free inference implementation. It matches PyTorch to within 0.0006 logits.
+`engine/wiezenlm.js` runs v1 and v2 without dependencies and matches PyTorch to within 0.005 logits.
 
 ## Results
 
@@ -170,8 +197,10 @@ engine/rules.js      rules, bidding, dealing, collecting, IWWA scoring
 engine/belief.js     card tracking: posterior over deck orders, world sampling
 engine/ai.js         heuristic policy, rollouts, PIMC card play, expected-value bidding
 engine/wiezenlm.js   network inference (browser + Node)
-train/gen_bidding.js training data for WiezenLM
-train/train_wiezenlm.py
+train/gen_bidding.js training data for WiezenLM v1
+train/selfplay.js    bot-vs-bot self-play data (real outcomes + tracking beliefs) for v2
+train/train_wiezenlm.py   v1
+train/train_wiezenlm2.py  v2 (self-play)
 train/match.js       strength evaluation
 train/test_engine.js engine tests
 web/                 template, UI, build script → web/index.html
@@ -183,7 +212,10 @@ docs/SOURCES.md      links to the IWWA regulations and point table
 ```bash
 node train/test_engine.js
 for i in 1 2 3 4; do node train/gen_bidding.js 12000 $((100+i)) build/bid_$i.bin & done; wait   # ~15 min
-python3 train/train_wiezenlm.py model build/bid_*.bin                                         # ~8 min, needs torch + safetensors
+python3 train/train_wiezenlm.py model/v1 build/bid_*.bin                                      # v1, ~8 min, needs torch + safetensors
+for i in 1 2 3; do node train/selfplay.js bots 900 $((200+i)) build/sp_bots_$i.bin model/v1/wiezenlm.web.json & done
+node train/selfplay.js fast 15000 299 build/sp_fast.bin; wait                                  # bot-vs-bot self-play, ~1 h
+python3 train/train_wiezenlm2.py model --v1 build/bid_*.bin --sp build/sp_*.bin --old model/v1   # v2, ~18 min
 python3 web/build.py model/wiezenlm.web.json web/index.html
 node train/match.js 400 1 bot-vs-rules model/wiezenlm.web.json
 ```

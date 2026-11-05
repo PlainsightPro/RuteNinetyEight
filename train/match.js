@@ -1,16 +1,16 @@
 // Strength evaluation: two player types share the table (seats 0+2 vs 1+3, swapped every hand).
 // Contracts form partnerships dynamically, so we report average points per hand per player type.
 //   node train/match.js <hands> <seed> <matchup> [wiezenlm.web.json]
-// matchups: bot-vs-rules | tracking-vs-notracking
+// matchups: bot-vs-rules | tracking-vs-notracking | net-vs-net (bots with model A vs model B: pass both paths)
 "use strict";
 const R = require("../engine/rules.js");
 const { Bot, heurCard, makeBelief, knownMap, voidsOf, sampleHands } = require("../engine/ai.js");
 const { WiezenLM } = require("../engine/wiezenlm.js");
 
-const [hands, seed, matchup, wpath] = [+process.argv[2], +process.argv[3], process.argv[4], process.argv[5]];
+const [hands, seed, matchup, wpath, wpath2] = [+process.argv[2], +process.argv[3], process.argv[4], process.argv[5], process.argv[6]];
 const rand = R.rngFrom(seed);
 let prior = null;
-if (wpath) { const lm = new WiezenLM(JSON.parse(require("fs").readFileSync(wpath, "utf8"))); prior = (h, t, s) => lm.predict(h, t, s); }
+if (wpath) { const lm = new WiezenLM(JSON.parse(require("fs").readFileSync(wpath, "utf8"))); prior = (h, t, s, loc) => lm.predict(h, t, s, loc); prior.usesLoc = lm.usesLoc; }
 
 // A sensible rule-based club player: bids on trump length/honours, plays the heuristic on one guessed deal.
 class RulesPlayer {
@@ -42,9 +42,10 @@ class RulesPlayer {
   }
 }
 
+function loadPrior(p) { const lm = new WiezenLM(JSON.parse(require("fs").readFileSync(p, "utf8"))); const f = (h, t, s, loc) => lm.predict(h, t, s, loc); f.usesLoc = lm.usesLoc; return f; }
 const mk = (opts) => new Bot({ rand, prior, worlds: 20, bidWorlds: 10, timeMs: 0, ...opts });
-const [X, Y, names] = matchup === "tracking-vs-notracking"
-  ? [mk({}), mk({ useTracking: false }), ["tracking", "no-tracking"]]
+const [X, Y, names] = matchup === "tracking-vs-notracking" ? [mk({}), mk({ useTracking: false }), ["tracking", "no-tracking"]]
+  : matchup === "net-vs-net" ? [mk({ prior: loadPrior(wpath) }), mk({ prior: loadPrior(wpath2) }), ["modelA", "modelB"]]
   : [mk({}), new RulesPlayer(), ["bot", "rules"]];
 
 const G = new R.Game({ rand, dealer: 0 });
