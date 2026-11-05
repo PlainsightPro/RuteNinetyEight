@@ -1,0 +1,207 @@
+<title>Wiezen Oefentafel</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+SC:wght@500;700&family=Alegreya+Sans:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a Flemish café card table — oxblood felt with the four seats around a trick area,
+   your hand fanned below, a ledger rail (scores, bids, previous game) on the right.
+   Deliberately single-theme: a lit table at night. */
+:root {
+  color-scheme: dark;
+  --room: #16110f;
+  --rail: #221a17;
+  --line: #3a2c26;
+  --felt: #5b1f25;
+  --felt-deep: #3b1418;
+  --ochre: #d9a441;
+  --ochre-soft: #9a7631;
+  --cream: #f3ead8;
+  --ink: #efe6d6;
+  --mute: #a99a8a;
+  --red: #b3202a;
+  --black: #1b1716;
+  --pos: #7fc493;
+  --neg: #e5806f;
+  --display: "Alegreya SC", Georgia, "Times New Roman", serif;
+  --body: "Alegreya Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --cw: clamp(40px, 6.4vw, 62px);
+}
+html, body { background: var(--room); color: var(--ink); }
+body { font-family: var(--body); font-size: 16px; line-height: 1.4; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-block: 16px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px 24px; margin-bottom: 14px; }
+h1 { font-family: var(--display); font-size: clamp(30px, 4.6vw, 44px); margin: 0; line-height: 1; letter-spacing: .02em; }
+h1 span { color: var(--ochre); }
+header p { margin: 4px 0 0; color: var(--mute); font-size: 14px; }
+.scores { display: flex; gap: 18px; font-variant-numeric: tabular-nums; }
+.sc { display: grid; justify-items: end; }
+.sc .k { font-size: 12px; text-transform: uppercase; letter-spacing: .12em; color: var(--mute); }
+.sc .v { font-family: var(--mono); font-size: 21px; }
+.sc .delta { font-family: var(--mono); font-size: 12px; } .pos { color: var(--pos); } .neg { color: var(--neg); }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 20px; align-items: start; }
+@media (max-width: 960px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+.table { position: relative; border-radius: 28px; padding: clamp(10px, 2vw, 18px); background: linear-gradient(#4a3326, #2e2019); box-shadow: 0 16px 44px rgba(0,0,0,.5), inset 0 0 0 2px #5c4130; }
+.felt { position: relative; border-radius: 20px; background: radial-gradient(ellipse at 50% 45%, var(--felt), var(--felt-deep) 80%);
+  box-shadow: inset 0 0 0 2px var(--ochre-soft), inset 0 0 70px rgba(0,0,0,.45);
+  display: grid; grid-template-areas: ". n ." "w c e" ". s ."; grid-template-columns: 1fr minmax(0, 1.5fr) 1fr; grid-template-rows: auto minmax(220px, auto) auto; gap: 8px; padding: 14px; }
+.seat { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 6px 8px; border-radius: 12px; min-width: 0; transition: background .2s, box-shadow .2s; }
+.seat.turn { background: rgba(217,164,65,.12); box-shadow: 0 0 0 1px var(--ochre-soft); }
+#seat-n { grid-area: n; } #seat-w { grid-area: w; align-self: center; } #seat-e { grid-area: e; align-self: center; } #seat-s { grid-area: s; }
+.who { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; justify-content: center; }
+.nm { font-family: var(--display); font-size: 19px; }
+.dl { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--cream); color: var(--black); font: 700 11px/1 var(--body); }
+.role { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; padding: 1px 7px; border-radius: 999px; background: var(--ochre); color: var(--black); }
+.role.partner { background: #e8c98a; } .role.miserie { background: var(--cream); }
+.won { font-size: 13px; color: var(--mute); min-height: 1.2em; font-variant-numeric: tabular-nums; }
+.bub { font-size: 14px; color: var(--ochre); min-height: 1.3em; text-align: center; }
+.seat .cards { display: flex; flex-wrap: wrap; justify-content: center; max-width: 100%; }
+.seat .cards .card.sm { margin-left: -18px; } .seat .cards .card.sm:first-child { margin-left: 0; }
+.seat .cards.open .card.sm { margin-left: calc(var(--cw) * -0.45); }
+#seat-w .cards, #seat-e .cards { max-width: 150px; }
+
+.center { grid-area: c; display: grid; grid-template-areas: ". tn ." "tw mid te" ". ts ."; grid-template-columns: 1fr auto 1fr; grid-template-rows: 1fr auto 1fr; place-items: center; gap: 4px; min-height: 220px; }
+#t-n { grid-area: tn; } #t-s { grid-area: ts; } #t-w { grid-area: tw; justify-self: end; } #t-e { grid-area: te; justify-self: start; }
+.mid { grid-area: mid; display: grid; justify-items: center; gap: 4px; text-align: center; padding: 0 6px; }
+.mid .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--mute); }
+.tslot { min-width: var(--cw); min-height: calc(var(--cw) * 1.4); display: grid; place-items: center; }
+
+.card { width: var(--cw); aspect-ratio: 5 / 7; max-width: 100%; border-radius: 6px; background: var(--cream); color: var(--black); display: flex; flex-direction: column; justify-content: space-between; padding: 3px 5px; box-shadow: 0 2px 5px rgba(0,0,0,.4); user-select: none; flex: none; }
+.card.red { color: var(--red); }
+.card .ix { display: flex; flex-direction: column; align-items: center; width: max-content; line-height: .95; }
+.card .rk { font-family: var(--display); font-weight: 700; font-size: calc(var(--cw) * .34); }
+.card .st { font-size: calc(var(--cw) * .3); }
+.card .pip { font-size: calc(var(--cw) * .5); line-height: 1; align-self: flex-end; }
+.card.sm { --cw: clamp(28px, 3.6vw, 36px); padding: 2px 2px; }
+.card.sm .pip { display: none; }
+.card.sm .rk { font-size: calc(var(--cw) * .38); } .card.sm .st { font-size: calc(var(--cw) * .36); }
+.card.back { background: repeating-linear-gradient(135deg, #7a2a31 0 5px, #5e1f25 5px 10px); box-shadow: inset 0 0 0 2px var(--cream), 0 2px 5px rgba(0,0,0,.4); }
+.card.win { box-shadow: 0 0 0 3px var(--ochre), 0 2px 5px rgba(0,0,0,.4); }
+.card.legal { cursor: pointer; transform: translateY(-6px); box-shadow: 0 0 0 2px var(--ochre), 0 6px 10px rgba(0,0,0,.45); }
+.card.legal:hover, .card.legal:focus-visible { transform: translateY(-12px); outline: none; }
+.card.dim { opacity: .45; }
+.hand { display: flex; justify-content: center; flex-wrap: wrap; gap: 4px 0; padding: 14px 4px 4px; min-height: calc(var(--cw) * 1.4 + 20px); }
+.hand .card { margin-left: calc(var(--cw) * -0.28); transition: transform .12s; } .hand .card:first-child { margin-left: 0; }
+@media (max-width: 560px) { .hand .card { margin-left: calc(var(--cw) * -0.45); } .felt { grid-template-columns: .8fr minmax(0, 1.6fr) .8fr; padding: 8px; } }
+
+.contract { margin-top: 10px; font-size: 15px; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+.contract b { font-family: var(--display); font-weight: 500; font-size: 18px; color: var(--ochre); }
+.deckinfo { font-size: 13px; color: var(--mute); }
+.thinking { font-size: 13px; color: var(--ochre); }
+.panel-bid, .panel-deal, .summary { margin-top: 12px; background: var(--rail); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; display: grid; gap: 10px; }
+.hint { font-size: 12px; text-transform: uppercase; letter-spacing: .14em; color: var(--mute); }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.brow { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; } .brow .bl { width: 112px; font-size: 14px; color: var(--mute); }
+button { font: 500 15px var(--body); color: var(--ink); background: #2d2320; border: 1px solid var(--line); border-radius: 10px; padding: 9px 15px; cursor: pointer; }
+button:hover { border-color: var(--ochre-soft); } button:focus-visible, input:focus-visible { outline: 2px solid var(--ochre); outline-offset: 2px; }
+button.primary { background: var(--ochre); color: var(--black); border-color: var(--ochre); font-weight: 700; }
+button.ghost { background: transparent; }
+button.suit { min-width: 44px; font-size: 18px; padding: 6px 10px; background: var(--cream); color: var(--black); }
+button.suit.red { color: var(--red); }
+input[type=range] { accent-color: var(--ochre); flex: 1 1 200px; }
+
+aside { display: grid; gap: 14px; min-width: 0; }
+.panel { background: var(--rail); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; min-width: 0; }
+.panel h2 { font-family: var(--display); font-weight: 500; font-size: 18px; margin: 0 0 8px; letter-spacing: .03em; }
+#log { list-style: none; margin: 0; padding: 0; max-height: 210px; overflow-y: auto; font-size: 13px; display: grid; gap: 2px; font-variant-numeric: tabular-nums; }
+#log li.me { color: var(--ochre); } #log li.tr { color: #cfc3b3; font-family: var(--mono); font-size: 11.5px; }
+.pile { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; margin-bottom: 6px; font-size: 12px; }
+.pile .pn { width: 38px; color: var(--mute); }
+.pile .pt { display: inline-flex; gap: 2px; background: #2d2320; border-radius: 6px; padding: 1px 5px; font-family: var(--mono); }
+.pile b { font-weight: 500; color: var(--ink); } .pile b.red { color: #f08a83; }
+.note { font-size: 13px; color: var(--mute); margin: 0; }
+#why { font-size: 13px; display: grid; gap: 2px; font-variant-numeric: tabular-nums; } #why .wh { color: var(--mute); }
+label.opt { display: flex; gap: 8px; align-items: center; font-size: 14px; cursor: pointer; margin: 4px 0; }
+details p, details li { font-size: 13px; color: #d6cabb; max-width: 65ch; }
+details ul { padding-left: 18px; margin: 6px 0; }
+summary { cursor: pointer; font-family: var(--display); font-size: 18px; }
+@media (prefers-reduced-motion: reduce) { .card, .seat { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Wiezen <span>Oefentafel</span></h1>
+      <p>IWWA-reglement Wiezen v4 · jij tegen drie bots · <span id="handno"></span></p>
+    </div>
+    <div class="scores" id="scores" aria-live="polite"></div>
+  </header>
+
+  <div class="layout">
+    <section>
+      <div class="table">
+        <div class="felt">
+          <div class="seat" id="seat-n"><div class="who"><span class="nm"></span><span class="dl" title="Gever">G</span><span class="role" hidden></span></div><div class="cards"></div><div class="bub"></div><div class="won"></div></div>
+          <div class="seat" id="seat-w"><div class="who"><span class="nm"></span><span class="dl" title="Gever">G</span><span class="role" hidden></span></div><div class="cards"></div><div class="bub"></div><div class="won"></div></div>
+          <div class="seat" id="seat-e"><div class="who"><span class="nm"></span><span class="dl" title="Gever">G</span><span class="role" hidden></span></div><div class="cards"></div><div class="bub"></div><div class="won"></div></div>
+          <div class="center">
+            <div class="tslot" id="t-n"></div><div class="tslot" id="t-w"></div><div class="tslot" id="t-e"></div><div class="tslot" id="t-s"></div>
+            <div class="mid"><div id="turned"></div><span class="lbl" id="turned-who">Keerkaart</span></div>
+          </div>
+          <div class="seat" id="seat-s"><div class="who"><span class="nm"></span><span class="dl" title="Gever">G</span><span class="role" hidden></span></div><div class="bub"></div><div class="won"></div></div>
+        </div>
+      </div>
+      <div class="hand" id="hand"></div>
+      <div class="contract"><b id="contract"></b><span class="thinking" id="thinking" hidden>bot denkt na…</span></div>
+      <div class="deckinfo" id="deck-info"></div>
+
+      <div class="panel-bid" id="bid-panel" hidden>
+        <div class="hint" id="bid-hint">Jouw bod</div>
+        <div class="row" id="bid-main"></div>
+        <div id="bid-abon"></div>
+      </div>
+
+      <div class="panel-deal" id="deal-panel" hidden>
+        <div class="hint" id="deal-title">Jij geeft</div>
+        <div class="row" id="cut-row"><span>Afpakken:</span><input type="range" id="cut" min="4" max="48" value="22" aria-label="Aantal kaarten afpakken"><span id="cut-val">22</span><span class="note">kaarten (min. 4, laat min. 4 liggen)</span></div>
+        <div class="row" id="pattern-row"><span>Geven:</span>
+          <label class="opt"><input type="radio" name="pattern" value="445" checked> 4-4-5</label>
+          <label class="opt"><input type="radio" name="pattern" value="454"> 4-5-4</label></div>
+        <div class="row"><button class="primary" id="deal-go">Geven</button></div>
+      </div>
+
+      <div class="summary" id="summary" hidden>
+        <div id="sum-text"></div>
+        <div class="row"><button class="primary" id="next">Volgend spel</button></div>
+      </div>
+    </section>
+
+    <aside>
+      <div class="panel"><h2>Biedingen en slagen</h2><ul id="log"></ul></div>
+      <div class="panel"><h2>Inschatting bot</h2><div id="why"></div></div>
+      <div class="panel"><h2>Vorig spel (openbaar)</h2><div id="prev"></div>
+        <p class="note">De kaarten worden niet geschud. Wie onthoudt hoe de slagen lagen, weet na het couperen en geven veel over de nieuwe handen. De bots doen dat.</p></div>
+      <div class="panel">
+        <h2>Instellingen</h2>
+        <label class="opt"><input type="checkbox" id="opt-track" checked> Bots volgen de kaarten</label>
+        <label class="opt"><input type="checkbox" id="opt-shuffle"> Altijd schudden (niets te volgen)</label>
+        <label class="opt"><input type="checkbox" id="opt-open"> Toon alle kaarten (oefenen)</label>
+        <div class="row" style="margin-top:8px"><button id="restart">Nieuwe partij</button></div>
+      </div>
+      <div class="panel">
+        <details>
+          <summary>Over de bots</summary>
+          <p>Elke bot speelt elke kaart door honderden mogelijke verdelingen van de verborgen kaarten na te spelen. De eerste slagen worden snel gesimuleerd, de laatste zeven exact doorgerekend. De verdelingen komen uit het kaartvolgen: hoe de slagen van vorig spel lagen, waar gecoupeerd kan zijn en hoe er gegeven werd.</p>
+          <p>Bij het bieden schat het neurale netwerk WiezenLM per contract hoeveel slagen de hand waard is. Dat wordt gecombineerd met dezelfde simulaties en de IWWA-puntentabel tot verwachte punten per bod.</p>
+          <ul>
+            <li>Regels en punten: IWWA Specifiek Reglement Wiezen v4 en Puntentabel Wiezen.</li>
+            <li>Niet geïmplementeerd: de keerkaart ruilen bij miserie van de gever.</li>
+          </ul>
+        </details>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script type="application/json" id="wiezenlm-weights">/*WEIGHTS*/</script>
+<script type="text/plain" id="engine-src">/*ENGINE_TEXT*/</script>
+<script>
+/*ENGINE*/
+</script>
+<script>
+/*UI*/
+</script>
