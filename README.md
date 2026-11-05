@@ -191,11 +191,20 @@ player per hand** between the two types, with 95% confidence intervals (`train/m
 |---|---|---|
 | bot vs. rule-based club player | 840 | **+2.5 ± 0.6** |
 | bot with card tracking vs. same bot without | 310 | +0.9 ± 1.1 (not yet significant) |
+| bots with WiezenLM v3 vs. same bots with v1 | 2,890 | +0.00 ± 0.38 (no measurable difference) |
 
 The rule-based player bids on trump length and honours and plays sound heuristics (second hand low,
 third hand high, cash winners, trump when the opponents win). The bots win mainly by bidding:
 they bid only contracts with positive expected points under the IWWA table, and the table punishes failed
 contracts hard (a made vraag scores +2, one trick short scores −6).
+
+**v3 vs v1:** v3 predicts real outcomes much better, yet that does not show up in points (yet).
+- **The network only affects bidding.** Card play does not use it.
+- **Most bidding decisions are clear-cut.** On the same 94 opening-bid situations with identical
+  simulations, v1 and v3 bots chose differently only 10% of the time (15% if the bot relied on the network alone).
+- **The difference per hand is small.** The resulting effect is probably a few tenths of a point per
+  player per hand, below what 2,890 hands can detect (±0.38). A duplicate format, where the same deals
+  are played with the networks swapped, would cancel the card luck and is the right next test.
 
 The tracking advantage is not measurable yet: two full bots at the same table differ by less than the noise
 after 310 hands. Tracking is what lets a strong human or bot read the unshuffled deck. The belief is exact
