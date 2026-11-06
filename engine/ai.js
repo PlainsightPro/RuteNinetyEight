@@ -122,7 +122,8 @@ function rollout(st, setup, dds) {
     const maxCards = Math.max(...st.hands.map((h) => h.length));
     if (maxCards === 0 && !st.trick.length) return total;
     const mis = setup.teamA !== setup.counted;
-    const lim = Math.min(mis ? K_DD + 1 : K_DD, st.ddCap ?? 99);
+    const kdd = st.kdd ?? K_DD;
+    const lim = Math.min(mis ? kdd + 1 : kdd, st.ddCap ?? 99);
     if (maxCards <= lim && !(mis && total > 0)) {
       const leader = st.trick.length ? st.trick[0].seat : st.leader, tc = st.trick.map((x) => x.card);
       dds.maxNodes = 120000;
@@ -136,7 +137,7 @@ function rollout(st, setup, dds) {
         st.ddCap = maxCards - 1; // too expensive here: play on heuristically for a while
       } finally { dds.maxNodes = 0; }
     }
-    if (mis && total > 0 && maxCards <= K_DD + 1) return total; // misery already lost
+    if (mis && total > 0 && maxCards <= kdd + 1) return total; // misery already lost
     const p = st.turn;
     const c = heurCard(st, p);
     st.hands[p] = st.hands[p].filter((x) => x !== c);
@@ -212,6 +213,27 @@ function locFeatures(game, seat, belief, rand, n = 64) {
   return loc;
 }
 
+// Replay the auction and return, for every bid made by someone other than `exclude`, what that
+// player could have bid at that moment (bidding inference needs the alternatives, not just the bid).
+function auctionActions(game, exclude) {
+  const sh = Object.create(R.Game.prototype);
+  Object.assign(sh, {
+    hands: game.dealt.map((h) => h.slice()), dealt: game.dealt, turned: game.turned, turnedSuit: game.turnedSuit,
+    dealer: game.dealer, phase: "bid", bids: [], status: ["in", "in", "in", "in"], cur: null, holders: [],
+    askAlone: null, troelSeat: game.troelSeat ?? null, rand: () => 0.5,
+  });
+  if (sh.troelSeat != null) { sh.cur = { type: "troel" }; sh.holders = [sh.troelSeat]; }
+  sh.turn = sh.nextBidder((sh.dealer + 1) % 4, true);
+  const bids = game.bids.filter((b) => b.bid.type !== "troel"), acts = [];
+  for (let i = 0; i < bids.length; i++) {
+    const b = bids[i];
+    if (sh.phase !== "bid" || sh.turn !== b.seat) break;
+    if (b.seat !== exclude) acts.push({ q: b.seat, legal: sh.legalBids(b.seat), chosen: JSON.stringify(b.bid), holders: sh.holders.slice() });
+    if (i < bids.length - 1) sh.bid(b.seat, b.bid); // the last bid may end the auction: not needed
+  }
+  return acts;
+}
+
 // ------------------------------------------------------------------ the bot
 class Bot {
   constructor(opts = {}) {
@@ -224,6 +246,10 @@ class Bot {
     this.learnHabits = opts.learnHabits !== false; // learn cut/gather habits from finished hands
     this.prior = opts.prior || null;       // WiezenLM: (hand, turned, relSeat) -> trick distributions
     this.priorWeight = opts.priorWeight ?? 8;
+    this.kdd = opts.kdd ?? K_DD;               // exact double-dummy from this many cards per hand
+    // bidding inference: weight sampled deals by how plausible everyone's bids are with those cards
+    this.bidModel = opts.bidModel || null;     // small WiezenLM (v1 inputs): (hand, turned, rel) -> distributions
+    this.bidTemp = opts.bidTemp ?? 1.5;        // softness of the assumed bidding policy (points); lower = trust bids more
   }
 
   // learn the players' cutting / gathering habits from all finished hands of this game
@@ -239,6 +265,51 @@ class Bot {
     if (!this._b || this._bk !== key) { this._b = makeBelief(game, seat, this.useTracking, this.learnHabits ? this.habits : null); this._bk = key; }
     this._b.update(knownMap(game, seat));
     return this._b;
+  }
+
+  // ---------------- bidding inference
+  bidLogLik(acts, game, hands, played) {
+    const ck = game.gameId + ":" + game.handNo;
+    if (this._bmKey !== ck) { this._bmKey = ck; this._bm = new Map(); }
+    let lw = 0;
+    for (const a of acts) {
+      const H = hands[a.q].concat(played[a.q]);  // that player's 13 cards in this sampled deal
+      const key = a.q + ":" + H.slice().sort((x, y) => x - y).join(",");
+      let P = this._bm.get(key);
+      if (!P) { P = this.bidModel(H, game.turned, (a.q - game.dealer + 4) % 4); this._bm.set(key, P); }
+      const E = { alone: P.alone, nt: P.nt, alleen: P.alleen, mis: P.mis, pair: {} };
+      for (let k = 1; k <= 3; k++) E.pair[(a.q + k) % 4] = P.pair[k - 1];
+      E.vraag = P.pair.reduce((x, y) => (expect(y) > expect(x) ? y : x));
+      const val = this.bidValues({ turnedSuit: game.turnedSuit, holders: a.holders }, a.q, E);
+      const us = a.legal.map((b) => (b.type === "pas" ? 0.5 : val(b)));
+      const mx = Math.max(...us);
+      let z = 0, pc = 0;
+      a.legal.forEach((b, i) => { const e = Math.exp((us[i] - mx) / this.bidTemp); z += e; if (JSON.stringify(b) === a.chosen) pc = e; });
+      lw += Math.log(0.9 * (pc / z) + 0.1 / a.legal.length); // 10%: players need not bid like a bot
+    }
+    return lw;
+  }
+
+  // returns a function that yields sampled deals; with bidding inference, from a likelihood-weighted pool
+  makeDrawer(game, seat, belief, voids, count) {
+    const plain = () => sampleHands(game, seat, belief, this.rand, voids);
+    if (!this.bidModel) return plain;
+    const acts = auctionActions(game, seat);
+    if (!acts.length) return plain;
+    const played = [[], [], [], []];
+    for (const t of game.tricks) t.cards.forEach((c, i) => played[t.seats[i]].push(c));
+    for (const x of game.trick) played[x.seat].push(x.card);
+    const pool = [], lw = [];
+    for (let i = 0; i < 2 * count; i++) { const h = plain(); pool.push(h); lw.push(this.bidLogLik(acts, game, h, played)); }
+    const mx = Math.max(...lw), w = lw.map((x) => Math.exp(x - mx)), z = w.reduce((a, b) => a + b, 0);
+    const queue = [];
+    let u = this.rand() / count, acc = 0, j = 0;  // systematic resampling
+    for (let i = 0; i < pool.length && queue.length < count; i++) {
+      acc += w[i] / z;
+      while (u < acc && queue.length < count) { queue.push(pool[i]); u += 1 / count; }
+    }
+    this.lastEss = (z * z) / w.reduce((a, b) => a + b * b, 0);
+    return () => (queue.length ? queue.shift().map((h) => h.slice()) : plain());
   }
 
   // ---------------- card play
@@ -266,13 +337,14 @@ class Bot {
     const total = ct.players ? [...Array(4).keys()].filter((p) => (setup.counted >> p) & 1).reduce((a, p) => a + game.won[p], 0) : 0;
     const forced = game.tricks.length === 0 && game.trick.length === 0 ? ct.forcedLead : null;
     const t0 = Date.now();
+    const draw = this.makeDrawer(game, seat, belief, voids, this.worlds);
     let n = 0;
     for (let w = 0; w < this.worlds; w++) {
       if (this.timeMs && w >= 6 && Date.now() - t0 > this.timeMs) break;
-      const hands = sampleHands(game, seat, belief, this.rand, voids);
+      const hands = draw();
       cands.forEach((c, i) => {
         const st = {
-          hands: hands.map((h) => h.slice()), trick: game.trick.slice(), leader: game.leader, ct, total, forced: null,
+          hands: hands.map((h) => h.slice()), trick: game.trick.slice(), leader: game.leader, ct, total, forced: null, kdd: this.kdd,
         };
         st.hands[seat] = st.hands[seat].filter((x) => x !== c);
         st.trick.push({ seat, card: c });
@@ -302,12 +374,13 @@ class Bot {
     others.forEach((j) => (S.pair[j] = hist()));
     const voids = [0, 0, 0, 0];
     const t0 = Date.now();
+    const draw = this.makeDrawer(game, seat, belief, voids, this.bidWorlds);
     for (let w = 0; w < this.bidWorlds; w++) {
       if (this.timeMs && w >= 4 && Date.now() - t0 > this.timeMs * 1.5) break;
-      const hands = sampleHands(game, seat, belief, this.rand, voids);
+      const hands = draw();
       const run = (ct, leader) => {
         const setup = ddSetup(ct, seat);
-        return rollout({ hands: hands.map((h) => h.slice()), trick: [], leader, turn: leader, total: 0, ct, forced: null }, setup, this.dds);
+        return rollout({ hands: hands.map((h) => h.slice()), trick: [], leader, turn: leader, total: 0, ct, forced: null, kdd: this.kdd }, setup, this.dds);
       };
       for (let t = 0; t < 4; t++) S.alone[t][run({ type: "abondance", players: [seat], trump: t, level: 9 }, seat)]++;
       S.nt[run({ type: "solo", players: [seat], trump: NT }, seat)]++;
@@ -382,4 +455,4 @@ class Bot {
 
 function expect(d) { return d.reduce((a, p, k) => a + p * k, 0); }
 
-if (typeof module !== "undefined") module.exports = { Bot, locFeatures, heurCard, rollout, ddSetup, utility, knownMap, voidsOf, makeBelief, sampleHands, K_DD, legalOf };
+if (typeof module !== "undefined") module.exports = { Bot, auctionActions, locFeatures, heurCard, rollout, ddSetup, utility, knownMap, voidsOf, makeBelief, sampleHands, K_DD, legalOf };

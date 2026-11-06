@@ -1,12 +1,16 @@
 """Bundle the engine (CommonJS files) + WiezenLM weights + UI into one self-contained page.
 
-usage: python web/build.py <wiezenlm.web.json> [out.html] [--fragment]
+usage: python web/build.py <wiezenlm.web.json> [out.html] [--fragment] [--bid model/bid/wiezenlm.web.json]
 """
 import os, sys
 
 here = os.path.dirname(os.path.abspath(__file__))
 eng = os.path.join(here, "..", "engine")
-args = [a for a in sys.argv[1:] if not a.startswith("--")]
+argv = sys.argv[1:]
+bid_path = None
+if "--bid" in argv:
+    i = argv.index("--bid"); bid_path = argv[i + 1]; del argv[i:i + 2]
+args = [a for a in argv if not a.startswith("--")]
 weights = open(args[0]).read().replace("</", "<\\/")
 out = args[1] if len(args) > 1 else os.path.join(here, "index.html")
 
@@ -21,6 +25,7 @@ for name in ["dds", "rules", "belief", "ai", "wiezenlm"]:
 engine = "".join(parts)
 page = open(os.path.join(here, "template.html")).read()
 page = page.replace("/*WEIGHTS*/", weights)
+page = page.replace("/*BID_WEIGHTS*/", open(bid_path).read().replace("</", "<\\/") if bid_path else "null")
 page = page.replace("/*ENGINE_TEXT*/", engine.replace("</", "<\\/"))
 page = page.replace("/*ENGINE*/", engine)
 page = page.replace("/*UI*/", open(os.path.join(here, "ui.js")).read())

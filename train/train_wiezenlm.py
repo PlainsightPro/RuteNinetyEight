@@ -99,6 +99,8 @@ def main():
     ap.add_argument("out"); ap.add_argument("data", nargs="+")
     ap.add_argument("--epochs", type=int, default=12)
     ap.add_argument("--bs", type=int, default=512)
+    ap.add_argument("--d", type=int, default=64)
+    ap.add_argument("--layers", type=int, default=3)
     a = ap.parse_args()
     torch.manual_seed(0); np.random.seed(0)
     torch.set_num_threads(os.cpu_count())
@@ -107,7 +109,7 @@ def main():
     perm = np.random.permutation(n)
     va, tr = perm[: min(10000, n // 10)], perm[min(10000, n // 10):]
     print(f"{n:,} samples ({len(tr):,} train / {len(va):,} val)")
-    model = WiezenLM()
+    model = WiezenLM(d=a.d, layers=a.layers)
     nparam = sum(p.numel() for p in model.parameters())
     print(f"WiezenLM: {nparam:,} parameters")
     opt = torch.optim.AdamW(model.parameters(), lr=2e-3, weight_decay=0.01)

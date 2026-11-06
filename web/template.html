@@ -181,6 +181,7 @@ summary { cursor: pointer; font-family: var(--display); font-size: 18px; }
         <h2>Instellingen</h2>
         <label class="opt"><input type="checkbox" id="opt-track" checked> Bots volgen de kaarten</label>
         <label class="opt"><input type="checkbox" id="opt-shuffle"> Altijd schudden (niets te volgen)</label>
+        <label class="opt"><input type="checkbox" id="opt-infer"> Bots lezen de biedingen (experimenteel)</label>
         <label class="opt"><input type="checkbox" id="opt-open"> Toon alle kaarten (oefenen)</label>
         <div class="row" style="margin-top:8px"><button id="restart">Nieuwe partij</button></div>
       </div>
@@ -201,6 +202,7 @@ summary { cursor: pointer; font-family: var(--display); font-size: 18px; }
 </div>
 
 <script type="application/json" id="wiezenlm-weights">/*WEIGHTS*/</script>
+<script type="application/json" id="bid-weights">/*BID_WEIGHTS*/</script>
 <script type="text/plain" id="engine-src">/*ENGINE_TEXT*/</script>
 <script>
 /*ENGINE*/

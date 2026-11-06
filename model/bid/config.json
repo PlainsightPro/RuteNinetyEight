@@ -1,0 +1,68 @@
+{
+ "d": 32,
+ "layers": 2,
+ "heads": 4,
+ "params": 32159,
+ "heads_order": [
+  "alone_c",
+  "alone_d",
+  "alone_h",
+  "alone_s",
+  "nt",
+  "alleen",
+  "pair1",
+  "pair2",
+  "pair3",
+  "misery_clean"
+ ],
+ "samples": 192000,
+ "metrics": {
+  "alone_c": {
+   "ce": 0.939,
+   "mae": 0.512,
+   "baseline_mae": 1.285
+  },
+  "alone_d": {
+   "ce": 0.933,
+   "mae": 0.512,
+   "baseline_mae": 1.271
+  },
+  "alone_h": {
+   "ce": 0.943,
+   "mae": 0.513,
+   "baseline_mae": 1.28
+  },
+  "alone_s": {
+   "ce": 0.932,
+   "mae": 0.509,
+   "baseline_mae": 1.26
+  },
+  "nt": {
+   "ce": 0.877,
+   "mae": 0.63,
+   "baseline_mae": 1.217
+  },
+  "alleen": {
+   "ce": 1.469,
+   "mae": 0.992,
+   "baseline_mae": 1.351
+  },
+  "pair1": {
+   "ce": 2.246,
+   "mae": 1.91,
+   "baseline_mae": 2.055
+  },
+  "pair2": {
+   "ce": 2.247,
+   "mae": 1.919,
+   "baseline_mae": 2.053
+  },
+  "pair3": {
+   "ce": 2.244,
+   "mae": 1.904,
+   "baseline_mae": 2.058
+  },
+  "misery_bce": 0.062
+ },
+ "inputs": "[CLS] + 13 own cards + turned card + seat relative to dealer (0 dealer, 1 voorhand)"
+}

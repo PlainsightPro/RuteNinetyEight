@@ -41,12 +41,18 @@ class WiezenLM {
   }
   static lin(x, T, din, dout, W, b) {
     const y = new Float32Array(T * dout);
-    for (let t = 0; t < T; t++)
+    for (let t = 0; t < T; t++) {
+      const xo = t * din, yo = t * dout;
       for (let j = 0; j < dout; j++) {
-        let s = b[j];
-        for (let i = 0; i < din; i++) s += x[t * din + i] * W[j * din + i];
-        y[t * dout + j] = s;
+        let s0 = b[j], s1 = 0, s2 = 0, s3 = 0, wo = j * din, i = 0;
+        for (; i + 3 < din; i += 4) {
+          s0 += x[xo + i] * W[wo + i]; s1 += x[xo + i + 1] * W[wo + i + 1];
+          s2 += x[xo + i + 2] * W[wo + i + 2]; s3 += x[xo + i + 3] * W[wo + i + 3];
+        }
+        for (; i < din; i++) s0 += x[xo + i] * W[wo + i];
+        y[yo + j] = s0 + s1 + s2 + s3;
       }
+    }
     return y;
   }
   // loc (v2 only): Float32Array(52*3), P(card held by the player at +1/+2/+3 seats)
@@ -75,18 +81,27 @@ class WiezenLM {
       const a = WiezenLM.ln(h, T, d, W[P + "ln1.weight"], W[P + "ln1.bias"]);
       const qkv = WiezenLM.lin(a, T, d, 3 * d, W[P + "qkv.weight"], W[P + "qkv.bias"]);
       const y = new Float32Array(T * d), sc = new Float32Array(T), scale = 1 / Math.sqrt(dh);
-      for (let hd = 0; hd < heads; hd++)
+      const d3 = 3 * d;
+      for (let hd = 0; hd < heads; hd++) {
+        const ho = hd * dh;
         for (let t = 0; t < T; t++) {
+          const qo = t * d3 + ho;
           let mx = -Infinity;
           for (let s = 0; s < T; s++) {
+            const ko = s * d3 + d + ho;
             let dot = 0;
-            for (let i = 0; i < dh; i++) dot += qkv[t * 3 * d + hd * dh + i] * qkv[s * 3 * d + d + hd * dh + i];
-            sc[s] = dot * scale; if (sc[s] > mx) mx = sc[s];
+            for (let i = 0; i < dh; i++) dot += qkv[qo + i] * qkv[ko + i];
+            dot *= scale; sc[s] = dot; if (dot > mx) mx = dot;
           }
           let z = 0;
-          for (let s = 0; s < T; s++) { sc[s] = Math.exp(sc[s] - mx); z += sc[s]; }
-          for (let s = 0; s < T; s++) { const p = sc[s] / z; for (let i = 0; i < dh; i++) y[t * d + hd * dh + i] += p * qkv[s * 3 * d + 2 * d + hd * dh + i]; }
+          for (let s = 0; s < T; s++) { const e = Math.exp(sc[s] - mx); sc[s] = e; z += e; }
+          const yo = t * d + ho, iz = 1 / z;
+          for (let s = 0; s < T; s++) {
+            const p = sc[s] * iz, vo = s * d3 + 2 * d + ho;
+            for (let i = 0; i < dh; i++) y[yo + i] += p * qkv[vo + i];
+          }
         }
+      }
       const pr = WiezenLM.lin(y, T, d, d, W[P + "proj.weight"], W[P + "proj.bias"]);
       for (let i = 0; i < h.length; i++) h[i] += pr[i];
       const a2 = WiezenLM.ln(h, T, d, W[P + "ln2.weight"], W[P + "ln2.bias"]);

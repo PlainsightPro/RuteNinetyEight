@@ -10,7 +10,8 @@
   const POS = ["s", "w", "n", "e"];
   const SUIT_ORDER = [3, 2, 0, 1]; // ♠ ♥ ♣ ♦ (alternating colours)
   const weightsText = $("wiezenlm-weights").textContent;
-  const opts = { tracking: true, shuffle: false, showAll: false };
+  const bidText = $("bid-weights").textContent; // small model for bidding inference ("null" if absent)
+  const opts = { tracking: true, shuffle: false, showAll: false, inference: false };
   let game = null, worker = null, msgId = 0, busy = false, shownTrick = null, lastBotValues = null;
   let habits = new Habits(), habitsSeen = 0; // the same learning the bots do, shown in the "Gewoontes" panel
   const cbs = {};
@@ -27,13 +28,16 @@
     if (d.init) {
       const lm = new WiezenLM(JSON.parse(d.weights));
       const prior = (h, t, s, loc) => lm.predict(h, t, s, loc); prior.usesLoc = lm.usesLoc;
-      bots.on = new Bot({ prior, worlds: 32, bidWorlds: 14, timeMs: 1100 });
-      bots.off = new Bot({ prior, worlds: 32, bidWorlds: 14, timeMs: 1100, useTracking: false });
+      const bj = JSON.parse(d.bid || "null"), bm = bj ? new WiezenLM(bj) : null;
+      const bidModel = bm ? (h, t, s) => bm.predict(h, t, s) : null;
+      const mk = (o) => new Bot({ prior, worlds: 32, bidWorlds: 14, timeMs: 1100, ...o });
+      bots.on = mk({}); bots.off = mk({ useTracking: false });
+      bots.onInf = mk({ bidModel }); bots.offInf = mk({ useTracking: false, bidModel });
       return;
     }
     const g = Object.assign(Object.create(R.Game.prototype), d.game);
     g.rand = Math.random;
-    const b = d.tracking ? bots.on : bots.off;
+    const b = d.inference && bots.onInf.bidModel ? (d.tracking ? bots.onInf : bots.offInf) : (d.tracking ? bots.on : bots.off);
     let out;
     try {
       if (d.kind === "bid") { const r = b.chooseBid(g, d.seat); out = { bid: r.bid, values: r.values || null }; }
@@ -49,15 +53,19 @@
       worker = new Worker(URL.createObjectURL(new Blob([src], { type: "text/javascript" })));
       worker.onmessage = (e) => { const cb = cbs[e.data.id]; delete cbs[e.data.id]; if (cb) cb(e.data.res); };
       worker.onerror = () => { worker = null; };
-      worker.postMessage({ init: true, weights: weightsText });
+      worker.postMessage({ init: true, weights: weightsText, bid: bidText });
     } catch (e) { worker = null; }
   }
   function inlineBots() {
     if (!inline) {
       const lm = new WiezenLM(JSON.parse(weightsText));
       const prior = (h, t, s, loc) => lm.predict(h, t, s, loc); prior.usesLoc = lm.usesLoc;
-      inline = { on: new Bot({ prior, worlds: 20, bidWorlds: 10, timeMs: 700 }), off: new Bot({ prior, worlds: 20, bidWorlds: 10, timeMs: 700, useTracking: false }) };
+      const bj = JSON.parse(bidText || "null"), bm = bj ? new WiezenLM(bj) : null;
+      const bidModel = bm ? (h, t, s) => bm.predict(h, t, s) : null;
+      const mk = (o) => new Bot({ prior, worlds: 20, bidWorlds: 10, timeMs: 700, ...o });
+      inline = { on: mk({}), off: mk({ useTracking: false }), onInf: mk({ bidModel }), offInf: mk({ useTracking: false, bidModel }) };
     }
+    if (opts.inference && inline.onInf.bidModel) return opts.tracking ? inline.onInf : inline.offInf;
     return opts.tracking ? inline.on : inline.off;
   }
   function snapshot() { return JSON.parse(JSON.stringify(game)); }
@@ -66,7 +74,7 @@
       if (worker) {
         const id = ++msgId;
         cbs[id] = resolve;
-        worker.postMessage({ id, kind, seat, game: snapshot(), tracking: opts.tracking });
+        worker.postMessage({ id, kind, seat, game: snapshot(), tracking: opts.tracking, inference: opts.inference });
         setTimeout(() => { if (cbs[id]) { delete cbs[id]; worker = null; resolve(localDecide(kind, seat)); } }, 20000);
       } else setTimeout(() => resolve(localDecide(kind, seat)), 30);
     });
@@ -375,6 +383,7 @@
   $("restart").onclick = () => { if (!busy) newGame(); };
   $("opt-track").onchange = (e) => (opts.tracking = e.target.checked);
   $("opt-shuffle").onchange = (e) => (opts.shuffle = e.target.checked);
+  $("opt-infer").onchange = (e) => (opts.inference = e.target.checked);
   $("opt-open").onchange = (e) => { opts.showAll = e.target.checked; renderAll(); };
 
   initBots();

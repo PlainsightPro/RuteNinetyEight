@@ -170,5 +170,19 @@ test("habits: learned cut/gather/pickup habits sharpen tracking", () => {
   assert.ok(hab / n > uni / n + 0.02, "habits did not help");
 });
 
+test("bidding inference: auction replay gives each player's options at his turn", () => {
+  const { auctionActions } = require("../engine/ai.js");
+  const g = new R.Game({ rand: R.rngFrom(3), dealer: 3 });
+  g.deal({ cut: 10, pattern: "445" });
+  if (g.troelSeat != null) return;
+  g.bid(0, { type: "vraag" }); g.bid(1, { type: "mee" }); g.bid(2, { type: "pas" });
+  const acts = auctionActions(g, 3);
+  assert.strictEqual(acts.length, 3);
+  assert.ok(acts[0].legal.some((b) => b.type === "vraag") && !acts[0].legal.some((b) => b.type === "mee"));
+  assert.ok(acts[1].legal.some((b) => b.type === "mee"));
+  assert.ok(acts[2].legal.every((b) => b.type !== "vraag" && b.type !== "mee"));
+  acts.forEach((a) => assert.ok(a.legal.some((b) => JSON.stringify(b) === a.chosen)));
+});
+
 console.log(failures ? `\n${failures} test(s) failed` : "\nall tests passed");
 process.exit(failures ? 1 : 0);

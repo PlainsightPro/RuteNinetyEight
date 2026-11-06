@@ -74,6 +74,20 @@ These are assumptions about human behaviour, not measurements. The "Gewoontes aa
 what the bots have learned, including your own cut depth. After an all-pass hand each player only knows
 his own previous hand, and the bots model that case too.
 
+### Bidding inference (optional)
+
+Every bid says something about the bidder's hand: someone who passed rarely holds five trumps with honours.
+With inference on, a bot replays the auction to recover what each player could have bid at their turn.
+It then weights its sampled deals by how likely each player's actual bid was with the cards that deal gives them,
+assuming they bid on expected points as the bots do. There is a 10% "anything goes" mixture, so players who
+bid differently do not break it.
+
+The likelihoods come from a small model (`model/bid/`, 30k parameters, about 1 ms per call). The full model is too slow
+for the hundreds of calls this needs.
+
+After the bidding, on deals where someone bid, the probability on the true owner of a hidden card
+goes from 0.352 to 0.381 for cards of the players who bid (without card tracking).
+
 ### WiezenLM (`model/`, v3, two rounds of bot-vs-bot self-play)
 
 A small transformer encoder (164k parameters) that evaluates a hand for bidding.
@@ -193,6 +207,23 @@ player per hand** between the two types, with 95% confidence intervals (`train/m
 | bot with card tracking vs. same bot without | 310 | +0.9 ± 1.1 (not yet significant) |
 | bots with WiezenLM v3 vs. same bots with v1 | 2,890 | +0.00 ± 0.38 (no measurable difference) |
 
+**Duplicate format** (`train/duplicate.js`): every deal is played twice with the same cards and the two bot
+types swapping seats, so card luck largely cancels out. Decks are shuffled every deal, so card tracking plays no role.
+
+| matchup | deals (×2 hands) | difference per player per hand |
+|---|---|---|
+| v3 vs v1 | 700 | +0.05 ± 0.25 |
+| v3 + bidding inference vs v3 | 990 | −0.05 ± 0.22 |
+| v3 + deeper search vs v3 | 1,080 | +0.14 ± 0.21 |
+
+Deeper search here means exact double-dummy from 8 cards instead of 7, and 30 sampled deals instead of 20.
+
+- **No difference is statistically significant.** All three effects are smaller than about a quarter point per player per hand.
+- **Deeper search leans positive** but costs 2–3× the compute. In the browser the bots work within a time budget,
+  so deeper search would mean fewer sampled deals, and the default stays at 7 cards.
+- **Bidding inference** (below) makes the bots' picture of the hidden hands measurably sharper, but against bots
+  it does not translate into points. It is available as an experimental setting ("Bots lezen de biedingen").
+
 The rule-based player bids on trump length and honours and plays sound heuristics (second hand low,
 third hand high, cash winners, trump when the opponents win). The bots win mainly by bidding:
 they bid only contracts with positive expected points under the IWWA table, and the table punishes failed
@@ -258,7 +289,8 @@ train/gen_bidding.js training data for WiezenLM v1
 train/selfplay.js    bot-vs-bot self-play data (real outcomes + tracking beliefs) for v2
 train/train_wiezenlm.py   v1
 train/train_wiezenlm2.py  v2 (self-play)
-train/match.js       strength evaluation
+train/match.js       strength evaluation (alternating seats)
+train/duplicate.js   duplicate-format matches (same deals, seats swapped)
 train/test_engine.js engine tests
 web/                 template, UI, build script → web/index.html
 docs/SOURCES.md      links to the IWWA regulations and point table
