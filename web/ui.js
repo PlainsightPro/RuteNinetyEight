@@ -13,7 +13,9 @@
   const bidText = $("bid-weights").textContent; // small model for bidding inference ("null" if absent)
   const opts = { tracking: true, shuffle: false, showAll: false, inference: false };
   let game = null, worker = null, msgId = 0, busy = false, shownTrick = null, lastBotValues = null;
-  let habits = new Habits(), habitsSeen = 0; // the same learning the bots do, shown in the "Gewoontes" panel
+  let habits = new Habits(), habitsSeen = 0;
+  let selCard = null, lastFocus = null;
+  const touch = window.matchMedia && window.matchMedia("(hover: none)").matches; // the same learning the bots do, shown in the "Gewoontes" panel
   const cbs = {};
   const fmt = (x) => (Math.round(x * 10) / 10).toString().replace(/\.0$/, "");
   const sgn = (x) => (x > 0 ? "+" : x < 0 ? "−" : "") + fmt(Math.abs(x));
@@ -219,16 +221,25 @@
         const hand = over ? game.dealt[p] : game.hands[p];
         cards.replaceChildren(...(open ? sortHand(hand).map((c) => cardEl(c, "sm")) : hand.map(() => cardEl(null, "sm"))));
         cards.classList.toggle("open", !!open);
+        el.querySelector(".cnt").textContent = open || !hand.length ? "" : `×${hand.length}`; // phones show one back + count
       }
     }
     // your hand
     const legal = game.phase === "play" && game.turn === 0 && !busy ? new Set(game.legalCards(0)) : new Set();
+    if (!legal.has(selCard)) selCard = null;
     const myHand = over ? game.dealt[0] : game.hands[0];
     $("hand").replaceChildren(...sortHand(myHand).map((c) => {
-      const el = cardEl(c, legal.size ? (legal.has(c) ? "legal" : "dim") : "");
-      if (legal.has(c)) { el.tabIndex = 0; el.onclick = () => humanPlay(c); el.onkeydown = (e) => { if (e.key === "Enter") humanPlay(c); }; }
+      const el = cardEl(c, legal.size ? (legal.has(c) ? (c === selCard ? "legal sel" : "legal") : "dim") : "");
+      if (legal.has(c)) {
+        el.tabIndex = 0;
+        // on touch screens: first tap lifts the card, second tap plays it (overlapping cards are easy to mis-tap)
+        el.onclick = () => { if (touch && selCard !== c && legal.size > 1) { selCard = c; renderAll(); return; } selCard = null; humanPlay(c); };
+        el.onkeydown = (e) => { if (e.key === "Enter") humanPlay(c); };
+      }
       return el;
     }));
+    $("play-hint").hidden = !(touch && legal.size > 1);
+    $("play-hint").textContent = selCard != null ? `Tik nog eens op ${R.cardStr(selCard)} om te spelen` : "Tik een kaart aan om ze te kiezen";
     // trick
     const tr = shownTrick ? shownTrick.cards.map((c, i) => ({ seat: shownTrick.seats[i], card: c })) : game.trick;
     for (let p = 0; p < 4; p++) {
@@ -249,6 +260,13 @@
     renderPrev();
     renderWhy();
     renderHabits();
+    // small screens: bring what needs your attention into view (once per moment)
+    const focusKey = over ? "sum" + game.handNo : game.phase === "bid" && game.turn === 0 && !busy ? "bid" + game.handNo + ":" + game.bids.length : null;
+    if (focusKey && focusKey !== lastFocus) {
+      lastFocus = focusKey;
+      const el = over ? $("summary") : $("bid-panel");
+      requestAnimationFrame(() => { if (!el.hidden && el.scrollIntoView) el.scrollIntoView({ block: "nearest", behavior: "smooth" }); });
+    }
     // end of hand
     const sum = $("summary");
     if (over) {
@@ -314,6 +332,7 @@
       solos.forEach((b) => row.appendChild(btn(b, b.trump === R.NT ? "SA" : R.SUIT_SYM[b.trump], "suit " + (b.trump === 1 || b.trump === 2 ? "red" : ""))));
       ab.appendChild(row);
     }
+    $("bid-more").hidden = !ab.children.length;
     $("bid-hint").textContent = game.askAlone === 0 ? "Niemand ging mee. Speel je alleen (5 slagen) of pas je?" : "Jouw bod";
   }
 
@@ -386,6 +405,7 @@
   $("opt-infer").onchange = (e) => (opts.inference = e.target.checked);
   $("opt-open").onchange = (e) => { opts.showAll = e.target.checked; renderAll(); };
 
+  if (window.matchMedia && window.matchMedia("(min-width: 641px)").matches) $("bid-more").open = true; // phones: folded
   initBots();
   newGame();
   window.__wiezen = { get game() { return game; }, humanBid, humanPlay, get busy() { return busy; }, doDeal, prepareDeal };

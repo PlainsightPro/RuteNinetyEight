@@ -70,7 +70,7 @@ header p { margin: 4px 0 0; color: var(--mute); font-size: 14px; }
 .mid .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--mute); }
 .tslot { min-width: var(--cw); min-height: calc(var(--cw) * 1.4); display: grid; place-items: center; }
 
-.card { width: var(--cw); aspect-ratio: 5 / 7; max-width: 100%; border-radius: 6px; background: var(--cream); color: var(--black); display: flex; flex-direction: column; justify-content: space-between; padding: 3px 5px; box-shadow: 0 2px 5px rgba(0,0,0,.4); user-select: none; flex: none; }
+.card { box-sizing: border-box; width: var(--cw); aspect-ratio: 5 / 7; max-width: 100%; border-radius: 6px; background: var(--cream); color: var(--black); display: flex; flex-direction: column; justify-content: space-between; padding: 3px 5px; box-shadow: 0 2px 5px rgba(0,0,0,.4); user-select: none; flex: none; }
 .card.red { color: var(--red); }
 .card .ix { display: flex; flex-direction: column; align-items: center; width: max-content; line-height: .95; }
 .card .rk { font-family: var(--display); font-weight: 700; font-size: calc(var(--cw) * .34); }
@@ -86,7 +86,55 @@ header p { margin: 4px 0 0; color: var(--mute); font-size: 14px; }
 .card.dim { opacity: .45; }
 .hand { display: flex; justify-content: center; flex-wrap: wrap; gap: 4px 0; padding: 14px 4px 4px; min-height: calc(var(--cw) * 1.4 + 20px); }
 .hand .card { margin-left: calc(var(--cw) * -0.28); transition: transform .12s; } .hand .card:first-child { margin-left: 0; }
-@media (max-width: 560px) { .hand .card { margin-left: calc(var(--cw) * -0.45); } .felt { grid-template-columns: .8fr minmax(0, 1.6fr) .8fr; padding: 8px; } }
+.cardline { display: flex; align-items: center; gap: 4px; max-width: 100%; }
+.cnt { display: none; font-family: var(--mono); font-size: 13px; color: var(--mute); }
+.card.sel { transform: translateY(-16px) !important; box-shadow: 0 0 0 3px var(--ochre), 0 8px 14px rgba(0,0,0,.5); }
+.playhint { font-size: 13px; color: var(--mute); }
+#bid-more summary { font-family: var(--body); font-size: 15px; color: var(--ochre); padding: 4px 0; }
+#bid-more[open] summary { margin-bottom: 6px; }
+
+/* ---------- phones: the whole game (table, your hand, your bid) fits on one screen ---------- */
+@media (max-width: 640px) {
+  .wrap { padding-block: 8px 28px; }
+  header { margin-bottom: 8px; gap: 6px; }
+  h1 { font-size: 24px; }
+  header p { font-size: 12px; margin-top: 2px; }
+  .scores { width: 100%; justify-content: space-between; gap: 8px; }
+  .sc { justify-items: center; } .sc .k { font-size: 11px; } .sc .v { font-size: 18px; }
+  .table { padding: 6px; border-radius: 18px; }
+  .felt { padding: 6px 4px; gap: 2px; border-radius: 13px; grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1fr);
+    grid-template-rows: auto minmax(150px, auto) auto; }
+  .seat { padding: 3px 4px; gap: 1px; }
+  .nm { font-size: 16px; }
+  .role { font-size: 10px; padding: 0 5px; }
+  .bub, .won { font-size: 12px; min-height: 1.1em; }
+  /* hidden opponent hands: one card back and a count instead of thirteen backs */
+  .seat .cards:not(.open) .card:not(:first-child) { display: none; }
+  .seat .cards:not(.open) .card.sm { --cw: 24px; }
+  .cnt { display: inline; }
+  .seat .cards.open { max-width: 100%; }
+  .seat .cards.open .card.sm { --cw: 22px; margin-left: -10px; padding: 1px; }
+  #seat-w .cards.open, #seat-e .cards.open { max-width: 92px; }
+  #seat-n .cards.open { max-width: 230px; }
+  .center { min-height: 128px; gap: 1px; }
+  .tslot { --cw: 36px; }
+  .felt { grid-template-rows: auto minmax(128px, auto) auto; }
+  /* top and bottom seats on one line */
+  #seat-n, #seat-s { flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: center; gap: 2px 8px; }
+  #seat-n .bub, #seat-n .won, #seat-s .bub, #seat-s .won { min-height: 0; }
+  header p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mid .card.sm { --cw: 26px; }
+  .mid .lbl { font-size: 10px; letter-spacing: .06em; }
+  /* your hand: 13 cards in one row, sized to the screen */
+  .hand { --cw: min(calc((100vw - 40px) / 7), 60px); padding: 18px 0 2px; gap: 0; flex-wrap: nowrap; min-height: calc(var(--cw) * 1.4 + 22px); }
+  .hand .card { margin-left: calc(var(--cw) * -0.5); }
+  .hand .card .pip { font-size: calc(var(--cw) * .42); }
+  .contract { margin-top: 6px; } .contract b { font-size: 16px; }
+  .panel-bid, .panel-deal, .summary { margin-top: 8px; padding: 10px 12px; gap: 8px; }
+  .panel-bid button { padding: 10px 14px; }
+  .brow .bl { width: 100%; }
+  button.suit { min-width: 52px; min-height: 44px; }
+}
 
 .contract { margin-top: 10px; font-size: 15px; display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
 .contract b { font-family: var(--display); font-weight: 500; font-size: 18px; color: var(--ochre); }
@@ -136,9 +184,9 @@ summary { cursor: pointer; font-family: var(--display); font-size: 18px; }
     <section>
       <div class="table">
         <div class="felt">
-          <div class="seat" id="seat-n"><div class="who"><span class="nm"></span><span class="dl" title="Gever">G</span><span class="role" hidden></span></div><div class="cards"></div><div class="bub"></div><div class="won"></div></div>
-          <div class="seat" id="seat-w"><div class="who"><span class="nm"></span><span class="dl" title="Gever">G</span><span class="role" hidden></span></div><div class="cards"></div><div class="bub"></div><div class="won"></div></div>
-          <div class="seat" id="seat-e"><div class="who"><span class="nm"></span><span class="dl" title="Gever">G</span><span class="role" hidden></span></div><div class="cards"></div><div class="bub"></div><div class="won"></div></div>
+          <div class="seat" id="seat-n"><div class="who"><span class="nm"></span><span class="dl" title="Gever">G</span><span class="role" hidden></span></div><div class="cardline"><div class="cards"></div><span class="cnt"></span></div><div class="bub"></div><div class="won"></div></div>
+          <div class="seat" id="seat-w"><div class="who"><span class="nm"></span><span class="dl" title="Gever">G</span><span class="role" hidden></span></div><div class="cardline"><div class="cards"></div><span class="cnt"></span></div><div class="bub"></div><div class="won"></div></div>
+          <div class="seat" id="seat-e"><div class="who"><span class="nm"></span><span class="dl" title="Gever">G</span><span class="role" hidden></span></div><div class="cardline"><div class="cards"></div><span class="cnt"></span></div><div class="bub"></div><div class="won"></div></div>
           <div class="center">
             <div class="tslot" id="t-n"></div><div class="tslot" id="t-w"></div><div class="tslot" id="t-e"></div><div class="tslot" id="t-s"></div>
             <div class="mid"><div id="turned"></div><span class="lbl" id="turned-who">Keerkaart</span></div>
@@ -147,13 +195,13 @@ summary { cursor: pointer; font-family: var(--display); font-size: 18px; }
         </div>
       </div>
       <div class="hand" id="hand"></div>
-      <div class="contract"><b id="contract"></b><span class="thinking" id="thinking" hidden>bot denkt na…</span></div>
+      <div class="contract"><b id="contract"></b><span class="thinking" id="thinking" hidden>bot denkt na…</span><span class="playhint" id="play-hint" hidden></span></div>
       <div class="deckinfo" id="deck-info"></div>
 
       <div class="panel-bid" id="bid-panel" hidden>
         <div class="hint" id="bid-hint">Jouw bod</div>
         <div class="row" id="bid-main"></div>
-        <div id="bid-abon"></div>
+        <details id="bid-more"><summary>Abondance en solo</summary><div id="bid-abon"></div></details>
       </div>
 
       <div class="panel-deal" id="deal-panel" hidden>
