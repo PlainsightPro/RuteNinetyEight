@@ -294,6 +294,7 @@ train/duplicate.js   duplicate-format matches (same deals, seats swapped)
 train/test_engine.js engine tests
 web/                 template, UI, build script → web/index.html
 docs/SOURCES.md      links to the IWWA regulations and point table
+data/                training data (v1 rollout labels, two rounds of self-play), see data/README.md
 ```
 
 ## Rebuild
