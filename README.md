@@ -1,4 +1,4 @@
-# Wiezen: practice table with AI players (IWWA rules)
+# Rute 98: Wiezen practice table with AI players (IWWA rules)
 
 A complete Wiezen (Belgian whist) game for the browser: **you against three bots**, following the
 IWWA *Specifiek Reglement Wiezen* (versie 4, 25-08-2026) and the IWWA *Puntentabel Wiezen/Whist*
