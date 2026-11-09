@@ -1,5 +1,7 @@
 # Rute 98: Wiezen practice table with AI players (IWWA rules)
 
+**Play:** https://plainsightpro.github.io/RuteNinetyEight/ (or open `web/index.html` locally)
+
 A complete Wiezen (Belgian whist) game for the browser: **you against three bots**, following the
 IWWA *Specifiek Reglement Wiezen* (versie 4, 25-08-2026) and the IWWA *Puntentabel Wiezen/Whist*
 (Federatie versie 1, 01-10-2025), the rules used at the
