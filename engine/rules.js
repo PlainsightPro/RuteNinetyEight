@@ -176,6 +176,7 @@ class Game {
     this.contract = null;
     this.bids = [];
     this.openCards = null;
+    this.stoppedEarly = false;
     // auction
     this.status = [0, 1, 2, 3].map(() => "in");
     this.cur = null;
@@ -312,7 +313,12 @@ class Game {
     this.tricks.push({ cards: this.trick.map((x) => x.card), seats: this.trick.map((x) => x.seat), winner: w });
     this.trick = [];
     this.leader = w; this.turn = w;
-    if (this.tricks.length === 13) this.endHand();
+    const ct = this.contract;
+    // (open) miserie: the game stops as soon as every miserie player has taken a trick
+    if ((ct.type === "miserie" || ct.type === "openmiserie") && this.tricks.length < 13 && ct.players.every((p) => this.won[p] > 0)) {
+      this.stoppedEarly = true;
+      this.endHand();
+    } else if (this.tricks.length === 13) this.endHand();
     return w;
   }
 
@@ -334,8 +340,15 @@ class Game {
     if (this.contract) {
       const piles = [[], [], [], []];
       for (const t of this.tricks) piles[t.winner].push(this.pickUp(t));
+      const tracked = this.tricks.map((t) => ({ cards: t.cards.slice(), seats: t.seats.slice(), winner: t.winner }));
+      // stopped early (miserie lost): everyone shows his remaining cards and puts them on his own pile
+      for (let p = 0; p < 4; p++) {
+        if (!this.hands[p].length) continue;
+        piles[p].push(shuffleInPlace(this.hands[p].slice(), this.rand));
+        tracked.push({ cards: this.hands[p].slice(), winner: p, rest: true });
+      }
       for (const p of order) for (const t of piles[p]) deck.push(...t);
-      this.track = { kind: "tricks", tricks: this.tricks.map((t) => ({ cards: t.cards.slice(), seats: t.seats.slice(), winner: t.winner })) };
+      this.track = { kind: "tricks", tricks: tracked };
     } else {
       for (const p of order) deck.push(...shuffleInPlace(this.hands[p].slice(), this.rand));
       this.track = { kind: "hands" }; // each player only knows his own previous hand

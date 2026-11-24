@@ -8,7 +8,6 @@
   const $ = (id) => document.getElementById(id);
   const NAMES = ["Jij", "Staf", "Mia", "Rik"];
   const POS = ["s", "w", "n", "e"];
-  const SUIT_ORDER = [3, 2, 0, 1]; // ♠ ♥ ♣ ♦ (alternating colours)
   const weightsText = $("wiezenlm-weights").textContent;
   const bidText = $("bid-weights").textContent; // small model for bidding inference ("null" if absent)
   const opts = { tracking: true, shuffle: false, showAll: false, inference: false };
@@ -166,12 +165,21 @@
     const el = document.createElement("div");
     if (c == null) { el.className = "card back " + cls; return el; }
     const s = R.suitOf(c);
-    el.className = `card ${s === 1 || s === 2 ? "red" : ""} ${cls}`;
+    el.className = `card s${s} ${s === 1 || s === 2 ? "red" : ""} ${cls}`;
     el.innerHTML = `<span class="ix"><span class="rk">${R.RANK_STR[R.rankOf(c)]}</span><span class="st">${R.SUIT_SYM[s]}</span></span><span class="pip">${R.SUIT_SYM[s]}</span>`;
     el.setAttribute("aria-label", R.cardStr(c));
     return el;
   }
-  const sortHand = (h) => h.slice().sort((a, b) => SUIT_ORDER.indexOf(R.suitOf(a)) - SUIT_ORDER.indexOf(R.suitOf(b)) || R.rankOf(b) - R.rankOf(a));
+  // suit order that alternates black and red for the suits actually in this hand (♠ ♥ ♣ ♦, or ♠ ♦ ♣ without hearts)
+  function suitOrderFor(h) {
+    const has = (s) => h.some((c) => R.suitOf(c) === s);
+    const blacks = [3, 0].filter(has), reds = [2, 1].filter(has);
+    const [a, b] = blacks.length >= reds.length ? [blacks, reds] : [reds, blacks];
+    const out = [];
+    for (let i = 0; i < a.length; i++) { out.push(a[i]); if (i < b.length) out.push(b[i]); }
+    return out.concat(b.slice(a.length));
+  }
+  const sortHand = (h) => { const o = suitOrderFor(h); return h.slice().sort((a, b) => o.indexOf(R.suitOf(a)) - o.indexOf(R.suitOf(b)) || R.rankOf(b) - R.rankOf(a)); };
 
   function roleOf(p) {
     const ct = game.contract;
@@ -226,20 +234,18 @@
     }
     // your hand
     const legal = game.phase === "play" && game.turn === 0 && !busy ? new Set(game.legalCards(0)) : new Set();
-    if (!legal.has(selCard)) selCard = null;
     const myHand = over ? game.dealt[0] : game.hands[0];
     $("hand").replaceChildren(...sortHand(myHand).map((c) => {
-      const el = cardEl(c, legal.size ? (legal.has(c) ? (c === selCard ? "legal sel" : "legal") : "dim") : "");
+      const el = cardEl(c, legal.size ? (legal.has(c) ? "legal" : "dim") : "");
       if (legal.has(c)) {
         el.tabIndex = 0;
         // on touch screens: first tap lifts the card, second tap plays it (overlapping cards are easy to mis-tap)
-        el.onclick = () => { if (touch && selCard !== c && legal.size > 1) { selCard = c; renderAll(); return; } selCard = null; humanPlay(c); };
+        el.onclick = () => humanPlay(c);
         el.onkeydown = (e) => { if (e.key === "Enter") humanPlay(c); };
       }
       return el;
     }));
-    $("play-hint").hidden = !(touch && legal.size > 1);
-    $("play-hint").textContent = selCard != null ? `Tik nog eens op ${R.cardStr(selCard)} om te spelen` : "Tik een kaart aan om ze te kiezen";
+    $("play-hint").hidden = true;
     // trick
     const tr = shownTrick ? shownTrick.cards.map((c, i) => ({ seat: shownTrick.seats[i], card: c })) : game.trick;
     for (let p = 0; p < 4; p++) {
@@ -248,11 +254,18 @@
       slot.replaceChildren(...(x ? [cardEl(x.card, shownTrick && shownTrick.winner === p ? "win" : "")] : []));
     }
     // turned card + contract
-    const turnedPlayed = game.tricks.some((t) => t.cards.includes(game.turned)) || game.trick.some((x) => x.card === game.turned);
-    $("turned").replaceChildren(...(turnedPlayed && !over ? [] : [cardEl(game.turned, "sm")]));
-    $("turned-who").textContent = turnedPlayed && !over
-      ? `Troef ${game.contract && game.contract.trump < 4 ? R.SUIT_SYM[game.contract.trump] : "–"} · gever ${NAMES[handDealer()]}`
-      : `Keerkaart · gever ${NAMES[handDealer()]}`;
+    const ctr = game.contract, playing = game.phase === "play" || over;
+    if (playing && ctr) { // during play: just show what is trump
+      const t = ctr.trump;
+      const badge = document.createElement("div");
+      badge.className = "trumpbadge" + (t === 1 || t === 2 ? " red" : "") + (t < 4 ? " s" + t : "");
+      badge.textContent = t < 4 ? R.SUIT_SYM[t] : "SA";
+      $("turned").replaceChildren(badge);
+      $("turned-who").textContent = t < 4 ? "Troef" : "Zonder troef";
+    } else {
+      $("turned").replaceChildren(cardEl(game.turned, "sm"));
+      $("turned-who").textContent = `Keerkaart · gever ${NAMES[handDealer()]}`;
+    }
     $("contract").textContent = contractText(game.contract);
     $("deck-info").textContent = trackText();
     renderBidPanel();
@@ -277,7 +290,8 @@
         const t = ct.players.reduce((a, p) => a + game.won[p], 0);
         const ok = ct.type.includes("miserie") ? ct.players.filter((p) => game.won[p] === 0).length + " van " + ct.players.length + " miserie gehaald"
           : t >= ct.target ? `gehaald met ${t} slagen` : `niet gehaald: ${t} slagen`;
-        $("sum-text").textContent = `${contractText(ct)}: ${ok}.`;
+        const stop = game.stoppedEarly ? ` Het spel stopte na slag ${game.tricks.length}: de miserie was verloren.` : "";
+        $("sum-text").textContent = `${contractText(ct)}: ${ok}.${stop}`;
       }
     } else sum.hidden = true;
   }
@@ -403,6 +417,7 @@
   $("opt-track").onchange = (e) => (opts.tracking = e.target.checked);
   $("opt-shuffle").onchange = (e) => (opts.shuffle = e.target.checked);
   $("opt-infer").onchange = (e) => (opts.inference = e.target.checked);
+  $("opt-four").onchange = (e) => document.body.classList.toggle("fourcolor", e.target.checked);
   $("opt-open").onchange = (e) => { opts.showAll = e.target.checked; renderAll(); };
 
   if (window.matchMedia && window.matchMedia("(min-width: 641px)").matches) $("bid-more").open = true; // phones: folded

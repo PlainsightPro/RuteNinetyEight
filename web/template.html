@@ -12,8 +12,8 @@
   --room: #16110f;
   --rail: #221a17;
   --line: #3a2c26;
-  --felt: #5b1f25;
-  --felt-deep: #3b1418;
+  --felt: #8c3a44;
+  --felt-deep: #6a2a33;
   --ochre: #d9a441;
   --ochre-soft: #9a7631;
   --cream: #f3ead8;
@@ -26,7 +26,7 @@
   --display: "Alegreya SC", Georgia, "Times New Roman", serif;
   --body: "Alegreya Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
-  --cw: clamp(40px, 6.4vw, 62px);
+  --cw: clamp(48px, 7vw, 76px);
 }
 html, body { background: var(--room); color: var(--ink); }
 body { font-family: var(--body); font-size: 16px; line-height: 1.4; }
@@ -57,7 +57,8 @@ header p { margin: 4px 0 0; color: var(--mute); font-size: 14px; }
 .dl { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--cream); color: var(--black); font: 700 11px/1 var(--body); }
 .role { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; padding: 1px 7px; border-radius: 999px; background: var(--ochre); color: var(--black); }
 .role.partner { background: #e8c98a; } .role.miserie { background: var(--cream); }
-.won { font-size: 13px; color: var(--mute); min-height: 1.2em; font-variant-numeric: tabular-nums; }
+.won { font-size: 16px; font-weight: 700; color: var(--ink); min-height: 1.2em; font-variant-numeric: tabular-nums; }
+.won:not(:empty) { background: rgba(0,0,0,.28); border-radius: 999px; padding: 1px 10px; }
 .bub { font-size: 14px; color: var(--ochre); min-height: 1.3em; text-align: center; }
 .seat .cards { display: flex; flex-wrap: wrap; justify-content: center; max-width: 100%; }
 .seat .cards .card.sm { margin-left: -18px; } .seat .cards .card.sm:first-child { margin-left: 0; }
@@ -67,19 +68,24 @@ header p { margin: 4px 0 0; color: var(--mute); font-size: 14px; }
 .center { grid-area: c; display: grid; grid-template-areas: ". tn ." "tw mid te" ". ts ."; grid-template-columns: 1fr auto 1fr; grid-template-rows: 1fr auto 1fr; place-items: center; gap: 4px; min-height: 220px; }
 #t-n { grid-area: tn; } #t-s { grid-area: ts; } #t-w { grid-area: tw; justify-self: end; } #t-e { grid-area: te; justify-self: start; }
 .mid { grid-area: mid; display: grid; justify-items: center; gap: 4px; text-align: center; padding: 0 6px; }
-.mid .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .12em; color: var(--mute); }
+.corner { position: absolute; top: 10px; left: 12px; z-index: 1; display: grid; justify-items: center; gap: 2px; max-width: 90px; text-align: center; }
+.corner .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .1em; color: var(--cream); opacity: .85; }
+.trumpbadge { width: 44px; height: 44px; border-radius: 50%; background: var(--cream); color: var(--black); display: grid; place-items: center; font-size: 28px; font-weight: 700; box-shadow: 0 2px 5px rgba(0,0,0,.4); }
+.trumpbadge.red { color: var(--red); }
+/* optional four-colour deck: clubs green, diamonds blue */
+.fourcolor .card.s0, .fourcolor .trumpbadge.s0 { color: #1f7a3a; } .fourcolor .card.s1, .fourcolor .trumpbadge.s1 { color: #1f5fb5; }
 .tslot { min-width: var(--cw); min-height: calc(var(--cw) * 1.4); display: grid; place-items: center; }
 
 .card { box-sizing: border-box; width: var(--cw); aspect-ratio: 5 / 7; max-width: 100%; border-radius: 6px; background: var(--cream); color: var(--black); display: flex; flex-direction: column; justify-content: space-between; padding: 3px 5px; box-shadow: 0 2px 5px rgba(0,0,0,.4); user-select: none; flex: none; }
 .card.red { color: var(--red); }
 .card .ix { display: flex; flex-direction: column; align-items: center; width: max-content; line-height: .95; }
-.card .rk { font-family: var(--display); font-weight: 700; font-size: calc(var(--cw) * .34); }
-.card .st { font-size: calc(var(--cw) * .3); }
+.card .rk { font-family: var(--display); font-weight: 700; font-size: calc(var(--cw) * .36); }
+.card .st { font-size: calc(var(--cw) * .38); line-height: .9; }
 .card .pip { font-size: calc(var(--cw) * .5); line-height: 1; align-self: flex-end; }
-.card.sm { --cw: clamp(28px, 3.6vw, 36px); padding: 2px 2px; }
+.card.sm { --cw: clamp(32px, 4vw, 42px); padding: 2px 2px; }
 .card.sm .pip { display: none; }
 .card.sm .rk { font-size: calc(var(--cw) * .38); } .card.sm .st { font-size: calc(var(--cw) * .36); }
-.card.back { background: repeating-linear-gradient(135deg, #7a2a31 0 5px, #5e1f25 5px 10px); box-shadow: inset 0 0 0 2px var(--cream), 0 2px 5px rgba(0,0,0,.4); }
+.card.back { background: repeating-linear-gradient(135deg, #3d1a22 0 5px, #2c1218 5px 10px); box-shadow: inset 0 0 0 2px var(--cream), 0 2px 5px rgba(0,0,0,.4); }
 .card.win { box-shadow: 0 0 0 3px var(--ochre), 0 2px 5px rgba(0,0,0,.4); }
 .card.legal { cursor: pointer; transform: translateY(-6px); box-shadow: 0 0 0 2px var(--ochre), 0 6px 10px rgba(0,0,0,.45); }
 .card.legal:hover, .card.legal:focus-visible { transform: translateY(-12px); outline: none; }
@@ -107,7 +113,8 @@ header p { margin: 4px 0 0; color: var(--mute); font-size: 14px; }
   .seat { padding: 3px 4px; gap: 1px; }
   .nm { font-size: 16px; }
   .role { font-size: 10px; padding: 0 5px; }
-  .bub, .won { font-size: 12px; min-height: 1.1em; }
+  .bub { font-size: 12px; min-height: 1.1em; }
+  .won { font-size: 14px; min-height: 1.1em; }
   /* hidden opponent hands: one card back and a count instead of thirteen backs */
   .seat .cards:not(.open) .card:not(:first-child) { display: none; }
   .seat .cards:not(.open) .card.sm { --cw: 24px; }
@@ -117,18 +124,20 @@ header p { margin: 4px 0 0; color: var(--mute); font-size: 14px; }
   #seat-w .cards.open, #seat-e .cards.open { max-width: 92px; }
   #seat-n .cards.open { max-width: 230px; }
   .center { min-height: 128px; gap: 1px; }
-  .tslot { --cw: 36px; }
+  .tslot { --cw: 46px; }
+  .corner { top: 6px; left: 8px; } .corner .lbl { font-size: 9px; letter-spacing: .04em; } .trumpbadge { width: 34px; height: 34px; font-size: 22px; }
+  .corner .card.sm { --cw: 30px; }
   .felt { grid-template-rows: auto minmax(128px, auto) auto; }
   /* top and bottom seats on one line */
   #seat-n, #seat-s { flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: center; gap: 2px 8px; }
   #seat-n .bub, #seat-n .won, #seat-s .bub, #seat-s .won { min-height: 0; }
   header p { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .mid .card.sm { --cw: 26px; }
-  .mid .lbl { font-size: 10px; letter-spacing: .06em; }
   /* your hand: 13 cards in one row, sized to the screen */
-  .hand { --cw: min(calc((100vw - 40px) / 7), 60px); padding: 18px 0 2px; gap: 0; flex-wrap: nowrap; min-height: calc(var(--cw) * 1.4 + 22px); }
-  .hand .card { margin-left: calc(var(--cw) * -0.5); }
+  /* your hand: 13 bigger cards, overlap computed so they always fit the screen width */
+  .hand { --cw: min(calc((100vw - 24px) / 5.6), 68px); padding: 18px 0 2px; gap: 0; flex-wrap: nowrap; min-height: calc(var(--cw) * 1.4 + 22px); }
+  .hand .card { margin-left: calc((100vw - 24px - var(--cw)) / 12 - var(--cw)); }
   .hand .card .pip { font-size: calc(var(--cw) * .42); }
+  .hand .card .rk { font-size: calc(var(--cw) * .38); } .hand .card .st { font-size: calc(var(--cw) * .4); }
   .contract { margin-top: 6px; } .contract b { font-size: 16px; }
   .panel-bid, .panel-deal, .summary { margin-top: 8px; padding: 10px 12px; gap: 8px; }
   .panel-bid button { padding: 10px 14px; }
@@ -184,12 +193,13 @@ summary { cursor: pointer; font-family: var(--display); font-size: 18px; }
     <section>
       <div class="table">
         <div class="felt">
+          <div class="corner"><div id="turned"></div><span class="lbl" id="turned-who">Keerkaart</span></div>
           <div class="seat" id="seat-n"><div class="who"><span class="nm"></span><span class="dl" title="Gever">G</span><span class="role" hidden></span></div><div class="cardline"><div class="cards"></div><span class="cnt"></span></div><div class="bub"></div><div class="won"></div></div>
           <div class="seat" id="seat-w"><div class="who"><span class="nm"></span><span class="dl" title="Gever">G</span><span class="role" hidden></span></div><div class="cardline"><div class="cards"></div><span class="cnt"></span></div><div class="bub"></div><div class="won"></div></div>
           <div class="seat" id="seat-e"><div class="who"><span class="nm"></span><span class="dl" title="Gever">G</span><span class="role" hidden></span></div><div class="cardline"><div class="cards"></div><span class="cnt"></span></div><div class="bub"></div><div class="won"></div></div>
           <div class="center">
             <div class="tslot" id="t-n"></div><div class="tslot" id="t-w"></div><div class="tslot" id="t-e"></div><div class="tslot" id="t-s"></div>
-            <div class="mid"><div id="turned"></div><span class="lbl" id="turned-who">Keerkaart</span></div>
+            <div class="mid"></div>
           </div>
           <div class="seat" id="seat-s"><div class="who"><span class="nm"></span><span class="dl" title="Gever">G</span><span class="role" hidden></span></div><div class="bub"></div><div class="won"></div></div>
         </div>
@@ -230,6 +240,7 @@ summary { cursor: pointer; font-family: var(--display); font-size: 18px; }
         <label class="opt"><input type="checkbox" id="opt-track" checked> Bots volgen de kaarten</label>
         <label class="opt"><input type="checkbox" id="opt-shuffle"> Altijd schudden (niets te volgen)</label>
         <label class="opt"><input type="checkbox" id="opt-infer"> Bots lezen de biedingen (experimenteel)</label>
+        <label class="opt"><input type="checkbox" id="opt-four"> Vierkleurige kaarten (♣ groen, ♦ blauw)</label>
         <label class="opt"><input type="checkbox" id="opt-open"> Toon alle kaarten (oefenen)</label>
         <div class="row" style="margin-top:8px"><button id="restart">Nieuwe partij</button></div>
       </div>

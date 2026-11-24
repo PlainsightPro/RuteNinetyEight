@@ -184,5 +184,36 @@ test("bidding inference: auction replay gives each player's options at his turn"
   acts.forEach((a) => assert.ok(a.legal.some((b) => JSON.stringify(b) === a.chosen)));
 });
 
+test("miserie stops as soon as the miserie player takes a trick; next deal and tracking still work", () => {
+  const { Habits } = require("../engine/belief.js");
+  let checked = 0;
+  for (let seed = 1; seed < 400 && checked < 5; seed++) {
+    const g = new R.Game({ rand: R.rngFrom(seed), dealer: 3 });
+    g.deal({});
+    if (g.troelSeat != null || g.legalBids(0).every((b) => b.type !== "miserie")) continue;
+    g.bid(0, { type: "miserie" }); g.bid(1, { type: "pas" }); g.bid(2, { type: "pas" }); g.bid(3, { type: "pas" });
+    if (g.phase !== "play") continue;
+    // miserie player plays his highest card, the others their lowest: he will soon take a trick
+    while (g.phase === "play") {
+      const lc = g.legalCards(g.turn);
+      g.play(g.turn, g.turn === 0 ? lc.reduce((a, b) => (R.rankOf(b) > R.rankOf(a) ? b : a)) : lc.reduce((a, b) => (R.rankOf(b) < R.rankOf(a) ? b : a)));
+    }
+    const h = g.history[g.history.length - 1];
+    if (h.won[0] === 0) continue; // he stayed clean after all
+    assert.ok(g.tricks.length < 13, "should stop early");
+    assert.strictEqual(g.deck.length, 52, "all cards go back into the deck");
+    assert.deepStrictEqual(h.pts.map((x) => Math.sign(x)), [-1, 1, 1, 1], "miserie lost");
+    g.deal({});
+    assert.ok(g.dealt.every((x) => x.length === 13));
+    const B = new Belief({ track: g.handTrack, seat: 1, dealer: g.dealer, pattern: g.pattern, habits: new Habits() });
+    const known = new Map(); g.dealt[1].forEach((c) => known.set(c, 1)); known.set(g.turned, g.dealer);
+    B.update(known);
+    assert.ok(B.alive.length > 0, "the true deck order must stay possible");
+    const H = new Habits(); H.learnFrom(g.history[g.history.length - 1]);
+    checked++;
+  }
+  assert.ok(checked >= 3, "not enough miserie games found: " + checked);
+});
+
 console.log(failures ? `\n${failures} test(s) failed` : "\nall tests passed");
 process.exit(failures ? 1 : 0);

@@ -358,8 +358,38 @@ class Bot {
       });
       n++;
     }
+    // Tie-break: when cards score (almost) the same, play the "cheap" one like a human would: don't take
+    // over a trick your partner is already winning, don't waste a trump, play low. Worth at most ~0.1 points,
+    // so it only decides between cards the search sees as (nearly) equal.
+    // is the trick my partner is winning certain? (I play last, or he holds the highest card still out
+    // in the led suit and nobody can trump: trumps led or no trump)
+    const partnerSure = (w, wc, led) => {
+      if (game.trick.length === 3) return true;
+      if (suitOf(wc) !== led || (ct.trump !== NT && led !== ct.trump)) return false;
+      for (let r = rankOf(wc) + 1; r < 13; r++) {
+        const d = led * 13 + r;
+        if (!game.hands[seat].includes(d) && out.has(d)) return false; // a higher card is still out there
+      }
+      return true;
+    };
+    const cost = (c) => {
+      if (setup.teamA !== setup.counted) return 0; // miserie: shedding high cards can be right
+      let k = rankOf(c) / 12;
+      if (game.trick.length) {
+        const w = trickWinner(game.trick, ct.trump), wc = game.trick.find((x) => x.seat === w).card;
+        const led = suitOf(game.trick[0].card);
+        const beatsW = (suitOf(c) === suitOf(wc) && c > wc) || (suitOf(c) === ct.trump && suitOf(wc) !== ct.trump);
+        if (((setup.teamA >> w) & 1) === ((setup.teamA >> seat) & 1) && beatsW) {
+          k += 2; // over my partner
+          if (partnerSure(w, wc, led)) k += 33; // ~1 point: only take over a sure partner trick for a clear gain
+        }
+        if (suitOf(c) === ct.trump && led !== ct.trump) k += 1;                         // trumping in
+      }
+      return k;
+    };
+    const score = cands.map((c, i) => sum[i] / n - 0.03 * cost(c));
     let bi = 0;
-    for (let i = 1; i < cands.length; i++) if (sum[i] > sum[bi] + 1e-9) bi = i;
+    for (let i = 1; i < cands.length; i++) if (score[i] > score[bi] + 1e-9) bi = i;
     return { card: cands[bi], values: cands.map((c, i) => ({ card: c, ev: sum[i] / n })), worlds: n, forced };
   }
 

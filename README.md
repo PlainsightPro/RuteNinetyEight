@@ -275,7 +275,8 @@ evidently needs more than PIMC on its own. More hands are needed to settle this.
 - **All pass:** no points. The deal passes to the next player and the hands are gathered without shuffling.
 - **Gathering for tracking:** the new dealer gathers the piles in some order, the order within a trick is random,
   and the previous dealer cuts at any allowed position. The bots' tracking uses exactly this model.
-- **No claims:** all 13 tricks are always played.
+- **Early stop:** (open) miserie stops as soon as every miserie player has taken a trick. The remaining cards are
+  shown and each player puts them on his own pile; the card tracking models those piles. Other contracts are always played to the 13th trick.
 - **Not implemented:** the dealer exchanging the turned card when playing miserie, and the jury check on high contracts.
 
 ## Repository layout

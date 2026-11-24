@@ -31,12 +31,16 @@ class Belief {
     const kind = useTracking ? track.kind : "shuffled";
     if (kind === "tricks") {
       const piles = [[], [], [], []];
-      for (const t of track.tricks) piles[t.winner].push({ cards: t.cards, fixed: fixedOrders(t), winner: t.winner });
+      // blocks: the tricks (4 cards) and, after a miserie that stopped early, each player's rest (any size)
+      for (const t of track.tricks) piles[t.winner].push({ cards: t.cards, fixed: t.rest ? null : fixedOrders(t), winner: t.winner });
       this.mix = habits ? [0, 1, 2, 3].map((w) => habits.pickMix(w)) : null;
       for (const order of PERMS4) {
         const blocks = [];
         let pos = 0;
-        for (const p of order) for (const t of piles[p]) { blocks.push({ pos: [pos, pos + 1, pos + 2, pos + 3], cards: t.cards, fixed: t.fixed, winner: t.winner }); pos += 4; }
+        for (const p of order) for (const t of piles[p]) {
+          blocks.push({ pos: t.cards.map((_, i) => pos + i), cards: t.cards, fixed: t.fixed, winner: t.winner });
+          pos += t.cards.length;
+        }
         this.addCuts(blocks, order);
       }
     } else if (kind === "hands" && prevOwnHand) {
